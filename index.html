@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wandr — AI Trip Copilot</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+<style>
+  :root { --pico-primary: #4f46e5; }
+  body { max-width: 860px; margin: 0 auto; }
+  .chat { border: 1px solid #eee; border-radius: 12px; padding: 12px; height: 50vh; overflow:auto; background:#fafafa }
+  .msg { margin: 8px 0; white-space: pre-wrap; }
+  .msg.user { text-align:right }
+  .row { display:flex; gap:8px; } .row > * { flex:1; }
+  .divider { border-top: 1px dashed #ddd; margin: 12px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Wandr</h1>
+  <p class="secondary">Chat with an AI agent to build a time-boxed itinerary. Export to .ics / text.</p>
+
+  <details open>
+    <summary>Trip</summary>
+    <div class="grid">
+      <input id="dest" placeholder="Destination (e.g., Tokyo, Japan)">
+      <input id="start" type="date">
+      <input id="end" type="date">
+    </div>
+    <div class="grid">
+      <input id="startTime" type="time" value="09:00">
+      <input id="endTime" type="time" value="21:00">
+    </div>
+    <div class="grid">
+      <input id="diet" placeholder="Food restrictions (e.g., halal, vegetarian)">
+      <input id="mobility" placeholder="Mobility (e.g., easy walks, wheelchair)">
+    </div>
+    <div class="grid">
+      <input id="walkability" placeholder="Walkability (low/med/high)">
+      <input id="nightlife" placeholder="Nightlife (low/med/high)">
+      <select id="budget">
+        <option>$</option><option>$$</option><option>$$$</option><option>$$$$</option>
+      </select>
+    </div>
+    <div class="row">
+      <button id="saveTrip">Save Trip</button>
+      <button id="exportTxt" class="contrast">Export TXT</button>
+      <button id="exportIcs" class="secondary">Export .ics</button>
+    </div>
+  </details>
+
+  <div class="divider"></div>
+
+  <div class="chat" id="chat"></div>
+  <div class="row">
+    <input id="input" placeholder="Tell Wandr what you want (e.g., 3 days, sushi focus, $$)">
+    <button id="send">Send</button>
+  </div>
+  <small id="status"></small>
+</main>
+
+<script>
+const WORKER = 'https://wandr-worker.wasim1113.workers.dev';
+const sessionId = ensureSession();
+let trip = loadTrip();
+
+document.getElementById('saveTrip').onclick = () => {
+  trip = {
+    destination: val('dest'),
+    startDate: val('start'),
+    endDate: val('end'),
+    startTime: val('startTime'),
+    endTime: val('endTime'),
+    prefs: {
+      food: val('diet'),
+      mobility: val('mobility'),
+      walkability: val('walkability'),
+      nightlife: val('nightlife'),
+      budget: val('budget')
+    }
+  };
+  localStorage.setItem('wandr_trip', JSON.stringify(trip));
+  toast('Trip saved.');
+};
+
+document.getElementById('send').onclick = send;
+document.getElementById('input').addEventListener('keydown', e => { if (e.key==='Enter') send(); });
+
+function loadTrip(){
+  const t = localStorage.getItem('wandr_trip');
+  if (t) {
+    const tt = JSON.parse(t);
+    id('dest').value = tt.destination || '';
+    id('start').value = tt.startDate || '';
+    id('end').value = tt.endDate || '';
+    id('startTime').value = tt.startTime || '09:00';
+    id('endTime').value = tt.endTime || '21:00';
+    id('diet').value = tt.prefs?.food || '';
+    id('mobility').value = tt.prefs?.mobility || '';
+    id('walkability').value = tt.prefs?.walkability || '';
+    id('nightlife').value = tt.prefs?.nightlife || '';
+    id('budget').value = tt.prefs?.budget || '$$';
+    return tt;
+  }
+  return {};
+}
+
+async function send(){
+  const text = val('input').trim();
+  if (!text) return;
+  append('user', text);
+  id('input').value = '';
+
+  if (!trip.destination || !trip.startDate || !trip.endDate) {
+    toast('Please fill Destination, Start, End dates, then Save Trip.');
+    return;
+  }
+
+  id('status').textContent = 'Thinking…';
+
+  const resp = await fetch(`${WORKER}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json' },
+    body: JSON.stringify({ sessionId, message: text, trip })
+  });
+
+  if (resp.status === 429) { append('assistant', 'You hit the daily limit. Export or try tomorrow.'); id('status').textContent=''; return; }
+  if (resp.status === 403) { append('assistant', 'This destination is not supported for safety/data reasons.'); id('status').textContent=''; return; }
+  if (!resp.ok) { const j = await resp.json().catch(()=>({})); append('assistant', 'Error: '+(j.error||resp.status)); id('status').textContent=''; return; }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let current = append('assistant', '');
+
+  while (true) {
+    const {value, done} = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, {stream:true});
+    const parts = buffer.split('\n\n'); buffer = parts.pop() || '';
+    for (const p of parts) {
+      if (p.startsWith(':')) continue; // keep-alive
+      const line = p.replace(/^data:\s*/,'');
+      if (line === '[DONE]') continue;
+      try {
+        const json = JSON.parse(line);
+        const t = json.choices?.[0]?.delta?.content || '';
+        if (t) current.textContent += t;
+      } catch { /* partial frame, ignore */ }
+    }
+  }
+  id('status').textContent = '';
+}
+
+function append(role, text){
+  const el = document.createElement('div');
+  el.className = `msg ${role}`;
+  el.textContent = text;
+  id('chat').appendChild(el);
+  id('chat').scrollTop = id('chat').scrollHeight;
+  return el;
+}
+function id(x){ return document.getElementById(x); }
+function val(x){ return id(x).value; }
+function toast(t){ id('status').textContent = t; setTimeout(()=>id('status').textContent='', 2000); }
+function ensureSession(){
+  let s = localStorage.getItem('wandr_session');
+  if (!s) { s = self.crypto?.randomUUID?.() ? crypto.randomUUID() : String(Date.now())+'-'+Math.random().toString(16).slice(2); localStorage.setItem('wandr_session', s); }
+  return s;
+}
+
+document.getElementById('exportIcs').onclick = () => {
+  const title = `Wandr Trip — ${trip.destination||''}`;
+  const dtStart = trip.startDate?.replace(/-/g,'');
+  const dtEnd = trip.endDate?.replace(/-/g,'');
+  const ics = [
+    'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Wandr//EN',
+    'BEGIN:VEVENT',
+    `UID:${sessionId}@wandr`,
+    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').split('.')[0]}Z`,
+    `DTSTART;VALUE=DATE:${dtStart}`,
+    `DTEND;VALUE=DATE:${dtEnd}`,
+    `SUMMARY:${title}`,
+    `DESCRIPTION:Generated by Wandr`,
+    'END:VEVENT','END:VCALENDAR'
+  ].join('\r\n');
+  download('wandr-trip.ics', ics, 'text/calendar');
+};
+
+document.getElementById('exportTxt').onclick = async () => {
+  const text = Array.from(document.querySelectorAll('.msg.assistant')).map(n=>n.textContent).join('\n\n---\n\n');
+  download('wandr-itinerary.txt', text, 'text/plain');
+};
+
+function download(name, data, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([data], {type}));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+</script>
+</body>
+</html>
