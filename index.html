@@ -26,7 +26,6 @@
   *{box-sizing:border-box} html,body{height:100%}
   body{margin:0;font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
        color:var(--ink); background:var(--bg);}
-
   a{color:var(--indigo); text-decoration:none}
 
   /* ====== Layout ====== */
@@ -43,7 +42,6 @@
   .btn.primary{ background:var(--indigo); color:#fff; border-color:var(--indigo) }
   .btn.ghost{ background:transparent }
   .link{ color:var(--indigo); background:none; border:none; padding:0; cursor:pointer }
-
   input, select{
     width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:10px; outline:none;
     background:var(--card); color:var(--ink);
@@ -84,7 +82,6 @@
   .msg.user{text-align:right}
   .composer{display:flex; gap:8px; margin-top:10px}
   .composer input{flex:1; padding:14px 16px; border:1px solid var(--line); border-radius:999px; outline:none}
-
   .error{display:none; border:1px solid #fecaca; background:#fff1f2; color:#991b1b; border-radius:var(--radius);
     padding:8px 10px; margin:10px 0;}
   [data-theme="dark"] .error{ background:#2a0f12; color:#fecaca; border-color:#7f1d1d }
@@ -101,6 +98,19 @@
   .settings-wrap{max-width:720px; margin:0 auto; padding:16px}
   .settings-section{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius-lg); padding:16px; box-shadow:var(--shadow)}
   .settings-section h3{margin:0 0 12px}
+
+  /* ====== City typeahead ====== */
+  .autocomplete { position: relative; }
+  .ac-list {
+    position: absolute; top: 100%; left: 0; right: 0;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; margin-top: 6px; box-shadow: var(--shadow);
+    max-height: 260px; overflow: auto; z-index: 20;
+  }
+  .ac-item { padding: 10px 12px; cursor: pointer; display:flex; justify-content:space-between; gap:8px; }
+  .ac-item:hover, .ac-item[aria-selected="true"] { background: var(--indigo-50); }
+  .ac-city { font-weight: 600; }
+  .ac-meta { color: var(--muted); font-size: 0.9rem; white-space: nowrap; }
 
   /* ====== Responsive ====== */
   @media (min-width: 900px){
@@ -127,7 +137,10 @@
 <section id="landing" class="hero">
   <div class="hero-card" role="region" aria-label="Start planning">
     <div class="search">
-      <input id="landingDestination" type="text" placeholder="Where are you going?" />
+      <div class="autocomplete">
+        <input id="landingDestination" type="text" placeholder="Where are you going?" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="destSuggest" />
+        <div id="destSuggest" class="ac-list hidden" role="listbox"></div>
+      </div>
       <div class="row">
         <button id="openAdvanced" class="btn" type="button">Advanced options</button>
         <button id="ctaPlan" class="btn primary" type="button">Plan my trip</button>
@@ -196,7 +209,12 @@
   <main class="settings-wrap">
     <div class="settings-section stack">
       <h3>Basics</h3>
-      <label>Destination <input id="s_dest" placeholder="e.g., Tokyo, Japan" /></label>
+      <label>Destination
+        <div class="autocomplete">
+          <input id="s_dest" placeholder="e.g., Tokyo, Japan" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="destSuggest2" />
+          <div id="destSuggest2" class="ac-list hidden" role="listbox"></div>
+        </div>
+      </label>
       <div class="row">
         <label style="flex:1">Start date <input id="s_startDate" type="date" /></label>
         <label style="flex:1">End date <input id="s_endDate" type="date" /></label>
@@ -236,7 +254,7 @@
   </main>
 </section>
 
-<!-- ====== Advanced Options Dialog (quick) ====== -->
+<!-- ====== Quick Edit Dialog ====== -->
 <dialog id="advancedDlg">
   <form method="dialog">
     <h3 style="margin:0 0 8px">Quick Edit</h3>
@@ -283,7 +301,6 @@ let lastAssistantMarkdown = '';
 /* ---------- Theme (Dark/Light) ---------- */
 const THEME_KEY = 'wandr_theme';
 initTheme();
-
 function initTheme(){
   const saved = localStorage.getItem(THEME_KEY) || 'light';
   document.documentElement.setAttribute('data-theme', saved);
@@ -319,7 +336,6 @@ document.getElementById('advancedDlg').addEventListener('close', () => {
     trip = currentTripFromAdvanced(); saveTrip();
   }
 });
-
 document.getElementById('ctaPlan').onclick = () => {
   const dest = document.getElementById('landingDestination').value.trim();
   if (!dest) { alert('Please enter a destination'); return; }
@@ -331,34 +347,19 @@ document.getElementById('backToLanding').onclick = () => { showLanding(); };
 document.getElementById('goSettings').onclick = () => { openSettings(); };
 
 /* Settings header controls */
-document.getElementById('backFromSettings').onclick = () => {
-  // If we have a destination, go to app; otherwise go to landing
-  if (trip?.destination) showApp(); else showLanding();
-};
+document.getElementById('backFromSettings').onclick = () => { if (trip?.destination) showApp(); else showLanding(); };
 
-/* Theme button bindings */
+/* Theme buttons */
 document.getElementById('themeToggleLanding').onclick = toggleTheme;
 document.getElementById('themeToggleApp').onclick = toggleTheme;
 document.getElementById('themeToggleSettings').onclick = toggleTheme;
 
 /* Settings actions */
-document.getElementById('settingsCancel').onclick = () => {
-  // discard changes; repopulate and go back
-  populateSettings(); if (trip?.destination) showApp(); else showLanding();
-};
-document.getElementById('settingsSave').onclick = () => {
-  trip = readSettingsIntoTrip(); saveTrip();
-  appTitle.textContent = trip.destination || 'Trip';
-  if (trip.destination) showApp(); else showLanding();
-};
-document.getElementById('deleteLocal').onclick = () => {
-  localStorage.removeItem('wandr_trip');
-  localStorage.removeItem('wandr_session');
-  alert('Local trip + session deleted.');
-  trip = {}; showLanding();
-};
+document.getElementById('settingsCancel').onclick = () => { populateSettings(); if (trip?.destination) showApp(); else showLanding(); };
+document.getElementById('settingsSave').onclick = () => { trip = readSettingsIntoTrip(); saveTrip(); appTitle.textContent = trip.destination || 'Trip'; if (trip.destination) showApp(); else showLanding(); };
+document.getElementById('deleteLocal').onclick = () => { localStorage.removeItem('wandr_trip'); localStorage.removeItem('wandr_session'); alert('Local trip + session deleted.'); trip = {}; showLanding(); };
 
-/* Quick Edit (dialog) and buttons */
+/* Quick Edit button */
 document.getElementById('editTrip').onclick = () => { fillAdvancedFromTrip(); document.getElementById('advancedDlg').showModal(); };
 
 /* Chat */
@@ -422,7 +423,6 @@ function readSettingsIntoTrip(){
       nightlife:getVal('s_nightlife'), budget:getVal('s_budget') }
   };
 }
-
 function setVal(id, v){ const el = document.getElementById(id); if(el) el.value = v; }
 function getVal(id){ const el = document.getElementById(id); return el ? el.value : ''; }
 
@@ -484,18 +484,15 @@ function renderPlanCards(markdown){
   if(!markdown || !markdown.trim()){ grid.innerHTML = '<div class="sub">No plan yet. Ask for a plan in Chat.</div>'; return; }
   const dayBlocks = markdown.split(/\n(?=#+\s*Day\s*\d+|Day\s*\d+:)/gi).filter(b => /day\s*\d+/i.test(b));
   if(dayBlocks.length===0){ const card=document.createElement('div'); card.className='card'; card.innerHTML=marked.parse(markdown); grid.appendChild(card); return; }
-
   dayBlocks.forEach(block=>{
     const titleMatch = block.match(/^(?:#+\s*)?Day\s*(\d+)/i);
     const dayNum = titleMatch ? titleMatch[1] : '?';
     const sections = extractSections(block);
-
     const card = document.createElement('div'); card.className='card';
     const badges = [];
     if (trip.prefs?.budget) badges.push(trip.prefs.budget);
     if (trip.prefs?.food) badges.push(trip.prefs.food);
     if (trip.prefs?.mobility) badges.push(trip.prefs.mobility);
-
     card.innerHTML = `
       <h3>Day ${dayNum}</h3>
       <div>${badges.map(b=>`<span class="badge">${escapeHtml(b)}</span>`).join(' ')}</div>
@@ -547,10 +544,134 @@ function exportPdf(){
 }
 function download(name, data, type){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([data],{type})); a.download=name; a.click(); URL.revokeObjectURL(a.href); }
 
+/* ---------- City Typeahead (Teleport live lookup) ---------- */
+// Landing input
+const destInput = document.getElementById('landingDestination');
+const acList = document.getElementById('destSuggest');
+// Settings input
+const destInput2 = document.getElementById('s_dest');
+const acList2 = document.getElementById('destSuggest2');
+
+let acOpen = false, acActive = -1, acDebounce;
+let acOpen2 = false, acActive2 = -1, acDebounce2;
+const SEARCH_CACHE = new Map();   // q -> [{label, admin, country, href}]
+const ITEM_CACHE = new Map();     // href -> {lat, lon}
+
+function escape(s){ return s.replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function acOpenList(listEl, inputEl, which='1'){ listEl.classList.remove('hidden'); inputEl.setAttribute('aria-expanded','true'); (which==='1'?(acOpen=true,acActive=-1):(acOpen2=true,acActive2=-1)); }
+function acCloseList(listEl, inputEl, which='1'){ listEl.classList.add('hidden'); inputEl.setAttribute('aria-expanded','false'); (which==='1'?(acOpen=false,acActive=-1):(acOpen2=false,acActive2=-1)); inputEl.removeAttribute('aria-activedescendant'); }
+function acSetActive(listEl, inputEl, activeIdx){
+  const nodes = [...listEl.querySelectorAll('.ac-item')];
+  nodes.forEach((n, idx) => n.setAttribute('aria-selected', String(idx===activeIdx)));
+  if (activeIdx >= 0) {
+    const el = listEl.querySelector('#'+listEl.id+'-item-'+activeIdx);
+    if (el) el.scrollIntoView({block:'nearest'});
+    inputEl.setAttribute('aria-activedescendant', listEl.id+'-item-'+activeIdx);
+  }
+}
+function acRender(listEl, inputEl, items){
+  listEl.innerHTML = '';
+  if (!items.length) { acCloseList(listEl, inputEl, listEl===acList?'1':'2'); return; }
+  items.forEach((c, i) => {
+    const div = document.createElement('div');
+    div.className = 'ac-item';
+    div.setAttribute('role','option');
+    div.setAttribute('id', `${listEl.id}-item-${i}`);
+    div.innerHTML = `<span class="ac-city">${escape(c.label)}</span><span class="ac-meta">${escape([c.admin, c.country].filter(Boolean).join(', '))}</span>`;
+    div.addEventListener('mousedown', (e)=>{ e.preventDefault(); pickCity(c, inputEl); });
+    listEl.appendChild(div);
+  });
+  acOpenList(listEl, inputEl, listEl===acList?'1':'2');
+}
+async function searchCities(q){
+  const key = q.trim().toLowerCase();
+  if (!key) return [];
+  if (SEARCH_CACHE.has(key)) return SEARCH_CACHE.get(key);
+  const url = `https://api.teleport.org/api/cities/?search=${encodeURIComponent(key)}&limit=8`;
+  try {
+    const r = await fetch(url, { headers: { 'Accept': 'application/vnd.teleport.v1+json' }});
+    if (!r.ok) return [];
+    const j = await r.json();
+    const list = (j._embedded?.['city:search-results'] || []).map(item => {
+      const label = item.matching_full_name || '';
+      const parts = label.split(',').map(s=>s.trim());
+      const city = parts[0] || label;
+      const country = parts.pop() || '';
+      const admin = parts.slice(1).join(', ');
+      const href = item._links?.['city:item']?.href || null;
+      return { label: city, admin, country, href };
+    }).filter(x => x.label);
+    SEARCH_CACHE.set(key, list);
+    if (SEARCH_CACHE.size > 200) SEARCH_CACHE.delete(SEARCH_CACHE.keys().next().value);
+    return list;
+  } catch { return []; }
+}
+async function pickCity(c, inputEl){
+  let coords = null;
+  if (c.href) {
+    if (ITEM_CACHE.has(c.href)) coords = ITEM_CACHE.get(c.href);
+    else {
+      try {
+        const r = await fetch(c.href, { headers: { 'Accept': 'application/vnd.teleport.v1+json' }});
+        if (r.ok) {
+          const j = await r.json();
+          const lat = j.location?.latlon?.latitude;
+          const lon = j.location?.latlon?.longitude;
+          if (typeof lat === 'number' && typeof lon === 'number') { coords = { lat, lon }; ITEM_CACHE.set(c.href, coords); }
+        }
+      } catch {}
+    }
+  }
+  const full = `${c.label}, ${[c.admin, c.country].filter(Boolean).join(', ')}`.replace(/\s+,/g, ',');
+  inputEl.value = full;
+  trip.destination = full;
+  if (coords) trip.coords = coords;
+  saveTrip();
+  acCloseList(inputEl===destInput ? acList : acList2, inputEl, inputEl===destInput ? '1':'2');
+}
+destInput.addEventListener('input', (e)=>{
+  const q = e.target.value;
+  clearTimeout(acDebounce);
+  acDebounce = setTimeout(async ()=>{
+    if (!q.trim()) { acCloseList(acList, destInput, '1'); return; }
+    acRender(acList, destInput, await searchCities(q));
+  }, 120);
+});
+destInput.addEventListener('keydown', (e)=>{
+  if (!acOpen) return;
+  const nodes = acList.querySelectorAll('.ac-item');
+  if (e.key === 'ArrowDown'){ e.preventDefault(); acActive = Math.min(nodes.length-1, acActive+1); acSetActive(acList, destInput, acActive); }
+  else if (e.key === 'ArrowUp'){ e.preventDefault(); acActive = Math.max(0, acActive-1); acSetActive(acList, destInput, acActive); }
+  else if (e.key === 'Enter'){ e.preventDefault(); if (acActive >= 0 && nodes[acActive]) nodes[acActive].dispatchEvent(new Event('mousedown')); else acCloseList(acList, destInput, '1'); }
+  else if (e.key === 'Escape'){ acCloseList(acList, destInput, '1'); }
+});
+destInput2.addEventListener('input', (e)=>{
+  const q = e.target.value;
+  clearTimeout(acDebounce2);
+  acDebounce2 = setTimeout(async ()=>{
+    if (!q.trim()) { acCloseList(acList2, destInput2, '2'); return; }
+    acRender(acList2, destInput2, await searchCities(q));
+  }, 120);
+});
+destInput2.addEventListener('keydown', (e)=>{
+  if (!acOpen2) return;
+  const nodes = acList2.querySelectorAll('.ac-item');
+  if (e.key === 'ArrowDown'){ e.preventDefault(); acActive2 = Math.min(nodes.length-1, acActive2+1); acSetActive(acList2, destInput2, acActive2); }
+  else if (e.key === 'ArrowUp'){ e.preventDefault(); acActive2 = Math.max(0, acActive2-1); acSetActive(acList2, destInput2, acActive2); }
+  else if (e.key === 'Enter'){ e.preventDefault(); if (acActive2 >= 0 && nodes[acActive2]) nodes[acActive2].dispatchEvent(new Event('mousedown')); else acCloseList(acList2, destInput2, '2'); }
+  else if (e.key === 'Escape'){ acCloseList(acList2, destInput2, '2'); }
+});
+document.addEventListener('click', (e)=>{
+  if (acOpen && !e.target.closest('.autocomplete')) acCloseList(acList, destInput, '1');
+  if (acOpen2 && !e.target.closest('.autocomplete')) acCloseList(acList2, destInput2, '2');
+});
+
 /* ---------- Init ---------- */
 (function init(){
-  // Prefill landing with prior destination
-  if (trip?.destination){ document.getElementById('landingDestination').value = trip.destination; }
+  if (trip?.destination){
+    document.getElementById('landingDestination').value = trip.destination;
+    document.getElementById('s_dest').value = trip.destination;
+  }
 })();
 </script>
 </body>
