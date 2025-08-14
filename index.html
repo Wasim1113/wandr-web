@@ -5,190 +5,100 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>Wandr — AI Travel Copilot</title>
 
-<!-- minimal libs -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 
 <style>
-  /* ===== Design tokens ===== */
   :root{
     --indigo:#4f46e5; --indigo-50:#eef2ff; --indigo-200:#c7d2fe;
     --ink:#111827; --muted:#6b7280; --line:#e5e7eb; --bg:#f9fafb; --card:#ffffff;
     --radius:14px; --radius-lg:20px; --shadow:0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.06);
-
-    /* mobile spacing scale */
     --pad-xs:8px; --pad-sm:12px; --pad:16px; --pad-lg:20px; --pad-xl:28px;
-
-    /* readable widths */
-    --mw: 1120px;
+    --mw:1200px;
   }
   [data-theme="dark"]{
     --ink:#e5e7eb; --muted:#9ca3af; --line:#30363d; --bg:#0b1220; --card:#0f172a;
-    --indigo-50:#0b1220; --indigo-200:#334155; --shadow: 0 0 0 rgba(0,0,0,0);
+    --indigo-50:#0b1220; --indigo-200:#334155; --shadow:0 0 0 rgba(0,0,0,0);
   }
 
-  /* ===== Base ===== */
-  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{height:100%}
-  body{
-    margin:0;
-    font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
-    color:var(--ink); background:var(--bg);
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-  a{color:var(--indigo); text-decoration:none}
+  body{margin:0;font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;color:var(--ink);background:var(--bg);padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+  a{color:var(--indigo);text-decoration:none}
 
-  /* Containers */
-  header{padding:var(--pad-xl) var(--pad); text-align:center}
-  main{max-width:var(--mw); margin:0 auto; padding:0 var(--pad) var(--pad-lg)}
-  .hidden{display:none !important}
-  .row{display:flex; gap:10px}
-  .stack{display:grid; gap:10px}
+  header{padding:var(--pad-xl) var(--pad);text-align:center}
+  main{max-width:var(--mw);margin:0 auto;padding:0 var(--pad) var(--pad-lg)}
+  .hidden{display:none!important}
+  .row{display:flex;gap:10px}
+  .stack{display:grid;gap:10px}
 
-  /* Buttons / Inputs */
-  .btn{
-    appearance:none; border:1px solid var(--line); background:#fff; color:var(--ink);
-    border-radius:999px; padding:12px 18px; cursor:pointer; font-weight:600;
-  }
-  .btn.primary{ background:var(--indigo); color:#fff; border-color:var(--indigo) }
-  .btn.ghost{ background:transparent }
-  .toggle{
-    display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border:1px solid var(--line);
-    border-radius:999px; background:transparent; color:var(--ink); cursor:pointer; font-weight:600;
-  }
-  input, select, textarea{
-    width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:10px; outline:none;
-    background:var(--card); color:var(--ink);
-  }
+  .btn{appearance:none;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:12px 18px;cursor:pointer;font-weight:600}
+  .btn.primary{background:var(--indigo);color:#fff;border-color:var(--indigo)}
+  .btn.ghost{background:transparent}
+  .toggle{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--ink);cursor:pointer;font-weight:600}
+  input,select,textarea{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;outline:none;background:var(--card);color:var(--ink)}
+  [data-theme="dark"] .btn{background:#111827;color:#e5e7eb;border-color:#374151}
+  [data-theme="dark"] .btn:hover{border-color:#475569}
+  [data-theme="dark"] .btn.primary{background:var(--indigo);color:#fff;border-color:var(--indigo)}
+  [data-theme="dark"] .toggle{color:#e5e7eb;border-color:#374151;background:transparent}
+  [data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{background:#0f172a;color:#e5e7eb;border-color:#374151}
+  [data-theme="dark"] input::placeholder{color:#9ca3af}
 
-  /* ==== Dark mode contrast hardening ==== */
-  [data-theme="dark"] .btn{
-    background:#111827;
-    color:#e5e7eb;
-    border-color:#374151;
-  }
-  [data-theme="dark"] .btn:hover{ border-color:#475569; }
-  [data-theme="dark"] .btn.primary{
-    background:var(--indigo);
-    color:#ffffff;
-    border-color:var(--indigo);
-  }
-  [data-theme="dark"] .toggle{
-    color:#e5e7eb;
-    border-color:#374151;
-    background:transparent;
-  }
-  [data-theme="dark"] input,
-  [data-theme="dark"] select,
-  [data-theme="dark"] textarea{
-    background:#0f172a; color:#e5e7eb; border-color:#374151;
-  }
-  [data-theme="dark"] input::placeholder{ color:#9ca3af; }
+  .hero{display:flex;align-items:center;justify-content:center;min-height:calc(100dvh - 180px);text-align:center;background:radial-gradient(1200px 600px at 50% -200px,var(--indigo-50),transparent);padding:var(--pad)}
+  .hero-card{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);padding:var(--pad-lg);box-shadow:var(--shadow)}
+  .logo{font-weight:800;font-size:28px;letter-spacing:.4px}
+  .sub{color:var(--muted);margin:6px 0 16px}
+  .search{display:grid;gap:10px}
 
-  /* ===== Landing ===== */
-  .hero{
-    display:flex; align-items:center; justify-content:center;
-    min-height:calc(100dvh - 180px); text-align:center;
-    background: radial-gradient(1200px 600px at 50% -200px, var(--indigo-50), transparent);
-    padding:var(--pad);
-  }
-  .hero-card{
-    width:100%; max-width:720px; background:var(--card); border:1px solid var(--line);
-    border-radius:var(--radius-lg); padding:var(--pad-lg); box-shadow:var(--shadow);
-  }
-  .logo{font-weight:800; font-size:28px; letter-spacing:.4px}
-  .sub{color:var(--muted); margin:6px 0 16px}
-  .search{display:grid; gap:10px}
-
-  /* ===== App bar ===== */
-  .appbar{
-    position:sticky; top:0; z-index:10; background:var(--card); border-bottom:1px solid var(--line);
-    padding:10px 12px; display:flex; gap:8px; align-items:center; justify-content:space-between;
-  }
+  .appbar{position:sticky;top:0;z-index:10;background:var(--card);border-bottom:1px solid var(--line);padding:10px 12px;display:flex;gap:8px;align-items:center;justify-content:space-between}
   .title{font-weight:700}
-  .cluster{display:flex; gap:8px; align-items:center}
+  .cluster{display:flex;gap:8px;align-items:center}
 
-  /* ===== Chips / Chat / Composer ===== */
-  .chips{display:flex; gap:8px; overflow:auto; padding:8px 0}
-  .chip{border:1px solid var(--line); background:var(--card); padding:8px 12px; border-radius:999px; white-space:nowrap; cursor:pointer; font-size:14px}
-  .chat{
-    border:1px solid var(--line);
-    background:color-mix(in srgb, var(--card) 92%, #fff 8%);
-    border-radius:var(--radius); padding:12px;
-    height: min(60dvh, 480px); /* mobile-friendly height */
-    min-height: 40dvh;
-    overflow:auto;
-  }
-  .msg{margin:10px 0; white-space:pre-wrap}
+  .chips{display:flex;gap:8px;overflow:auto;padding:8px 0}
+  .chip{border:1px solid var(--line);background:var(--card);padding:8px 12px;border-radius:999px;white-space:nowrap;cursor:pointer;font-size:14px}
+  [data-theme="dark"] .chip{background:#0b1220;color:#e5e7eb;border-color:#374151}
+  .chat{border:1px solid var(--line);background:color-mix(in srgb, var(--card) 92%, #fff 8%);border-radius:var(--radius);padding:12px;height:min(60dvh,520px);min-height:40dvh;overflow:auto}
+  [data-theme="dark"] .chat{background:#1f2433;border-color:#374151} /* darker panel in dark mode */
+  .msg{margin:10px 0;white-space:pre-wrap}
   .msg.user{text-align:right}
-  .composer{display:flex; gap:8px; margin-top:10px; position:sticky; bottom:0; background:linear-gradient(180deg, rgba(0,0,0,0), var(--bg) 40%); padding-top:6px}
-  .composer input{flex:1; padding:14px 16px; border:1px solid var(--line); border-radius:999px; outline:none}
+  .composer{display:flex;gap:8px;margin-top:10px;position:sticky;bottom:0;background:linear-gradient(180deg,rgba(0,0,0,0),var(--bg) 40%);padding-top:6px}
+  .composer input{flex:1;padding:14px 16px;border:1px solid var(--line);border-radius:999px;outline:none}
 
-  .error{display:none; border:1px solid #fecaca; background:#fff1f2; color:#991b1b; border-radius:var(--radius);
-    padding:8px 10px; margin:10px 0;}
-  [data-theme="dark"] .error{ background:#2a0f12; color:#fecaca; border-color:#7f1d1d }
+  .error{display:none;border:1px solid #fecaca;background:#fff1f2;color:#991b1b;border-radius:var(--radius);padding:8px 10px;margin:10px 0}
+  [data-theme="dark"] .error{background:#2a0f12;color:#fecaca;border-color:#7f1d1d}
 
-  /* ===== Plan ===== */
-  .toolbar{
-    display:flex; gap:8px; position:sticky; bottom:0;
-    background:linear-gradient(180deg, rgba(249,250,251,0), var(--bg) 30%);
-    padding-top:8px; flex-wrap:wrap;
-  }
-  .plan-grid{ display:grid; grid-template-columns:1fr; gap:12px; margin-top:12px }
-  .card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:14px; box-shadow:var(--shadow) }
-  .card h3{ margin:0 0 6px; font-size:1rem }
-  .badge{ display:inline-block; font-size:.72rem; border:1px solid var(--line); padding:2px 8px; border-radius:999px; margin-right:6px; color:var(--ink) }
-  .section{ margin:8px 0 } .section strong{ display:block; margin-bottom:4px }
+  .toolbar{display:flex;gap:8px;position:sticky;bottom:0;background:linear-gradient(180deg,rgba(249,250,251,0),var(--bg) 30%);padding-top:8px;flex-wrap:wrap}
+  .plan-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
+  .card h3{margin:0 0 6px;font-size:1rem}
+  .badge{display:inline-block;font-size:.72rem;border:1px solid var(--line);padding:2px 8px;border-radius:999px;margin-right:6px;color:var(--ink)}
+  .section{margin:8px 0}.section strong{display:block;margin-bottom:4px}
 
-  /* ===== Settings page ===== */
-  .settings-wrap{max-width:720px; margin:0 auto; padding:var(--pad)}
-  .settings-section{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius-lg); padding:16px; box-shadow:var(--shadow)}
+  .settings-wrap{max-width:720px;margin:0 auto;padding:var(--pad)}
+  .settings-section{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow)}
   .settings-section h3{margin:0 0 12px}
 
-  /* ===== City typeahead ===== */
-  .autocomplete { position: relative; }
-  .ac-list {
-    position: absolute; top: 100%; left: 0; right: 0;
-    background: var(--card); border: 1px solid var(--line);
-    border-radius: 12px; margin-top: 6px; box-shadow: var(--shadow);
-    max-height: min(45dvh, 320px); overflow: auto; z-index: 20;
-  }
-  .ac-item { padding: 12px; cursor: pointer; display:flex; justify-content:space-between; gap:8px; }
-  .ac-item:hover, .ac-item[aria-selected="true"] { background: var(--indigo-50); }
-  .ac-city { font-weight: 600; }
-  .ac-meta { color: var(--muted); font-size: 0.9rem; white-space: nowrap; }
+  .autocomplete{position:relative}
+  .ac-list{position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-top:6px;box-shadow:var(--shadow);max-height:min(45dvh,320px);overflow:auto;z-index:20}
+  .ac-item{padding:12px;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
+  .ac-item:hover,.ac-item[aria-selected="true"]{background:var(--indigo-50)}
+  .ac-city{font-weight:600}.ac-meta{color:var(--muted);font-size:.9rem;white-space:nowrap}
 
-  /* ===== Health chip ===== */
-  .status-chip{
-    display:inline-flex; align-items:center; gap:6px;
-    padding:6px 10px; border-radius:999px; font-weight:600; font-size:14px;
-    border:1px solid var(--line); background:var(--card); color:var(--muted);
-    user-select:none; cursor:pointer;
-  }
-  .status-chip.ok{ color:#059669; border-color:#10b981; }
-  .status-chip.bad{ color:#b91c1c; border-color:#f87171; }
-  .status-dot{ width:8px; height:8px; border-radius:50%; background:currentColor; }
+  .status-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-weight:600;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--muted);user-select:none;cursor:pointer}
+  .status-chip.ok{color:#059669;border-color:#10b981}
+  .status-chip.bad{color:#b91c1c;border-color:#f87171}
+  .status-dot{width:8px;height:8px;border-radius:50%;background:currentColor}
 
-  /* ===== Responsive ===== */
-  /* Mobile-first: single-column by default. */
-  .split{ display:grid; grid-template-columns:1fr; gap:var(--pad); align-items:start; }
-
-  @media (min-width: 760px){
-    .hero{ min-height:calc(100dvh - 180px); }
-    .split{ grid-template-columns: 1.05fr .95fr; gap:18px; }
-    .chat{ height:60dvh; }
-    .toolbar{ position:static; background:none; }
-    .plan-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
-  }
-
-  @media (min-width: 1100px){
-    .split{ grid-template-columns: 1.1fr .9fr; }
-  }
-
-  /* iOS viewport quirks: avoid 100vh jumps on scroll */
-  @supports (height: 100dvh) {
-    .hero{ min-height: calc(100dvh - 180px); }
+  /* Layout control:
+     - Single column by default
+     - When body.has-plan AND ≥ 860px, switch to two columns
+  */
+  .split{display:grid;grid-template-columns:1fr;gap:var(--pad);align-items:start}
+  @media (min-width:860px){
+    body.has-plan .split{grid-template-columns:1.1fr .9fr;gap:18px}
+    body.has-plan .chat{height:60dvh}
+    body.has-plan .toolbar{position:static;background:none}
+    body.has-plan .plan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   }
 </style>
 </head>
@@ -353,7 +263,6 @@
   </form>
 </dialog>
 
-<!-- Excluded destination modal -->
 <dialog id="blockedDlg">
   <article>
     <h3>Heads up</h3>
@@ -365,20 +274,17 @@
 </dialog>
 
 <script>
-/* Config */
 const WORKER = 'https://wandr-worker.wasim1113.workers.dev';
 const sessionId = ensureSession();
 let trip = loadTrip();
 let lastAssistantMarkdown = '';
 
-/* Theme */
 const THEME_KEY='wandr_theme';
 initTheme();
 function initTheme(){const saved=localStorage.getItem(THEME_KEY)||'light';document.documentElement.setAttribute('data-theme',saved);syncThemeButtons(saved);}
 function toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')||'light';const next=cur==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',next);localStorage.setItem(THEME_KEY,next);syncThemeButtons(next);}
 function syncThemeButtons(t){const label=t==='dark'?'☀️ Light':'🌙 Dark';document.querySelectorAll('#themeToggleLanding,#themeToggleApp,#themeToggleSettings').forEach(b=>{if(b){b.textContent=label;b.setAttribute('aria-pressed',t==='dark')}});}
 
-/* Views */
 const landing=document.getElementById('landing'); const landingHeader=document.getElementById('landingHeader'); const app=document.getElementById('app'); const settings=document.getElementById('settings'); const appTitle=document.getElementById('appTitle');
 
 document.getElementById('openAdvanced').onclick=()=>{fillAdvancedFromTrip();document.getElementById('advancedDlg').showModal();};
@@ -400,35 +306,29 @@ document.getElementById('settingsSave').onclick=()=>{trip=readSettingsIntoTrip()
 document.getElementById('deleteLocal').onclick=()=>{localStorage.removeItem('wandr_trip'); localStorage.removeItem('wandr_session'); alert('Local trip + session deleted.'); trip={}; showLanding();};
 document.getElementById('editTrip').onclick=()=>{fillAdvancedFromTrip();document.getElementById('advancedDlg').showModal();};
 
-/* Chat */
 document.getElementById('sendBtn').onclick=send;
 document.getElementById('chatInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();send();} });
 document.getElementById('chips').addEventListener('click',e=>{ const el=e.target.closest('.chip'); if(!el) return; document.getElementById('chatInput').value=el.dataset.msg; send(); });
 
-/* Exports */
 document.getElementById('exportIcs').onclick=exportIcs;
 document.getElementById('exportPdf').onclick=exportPdf;
 
-/* Trip helpers */
 function ensureSession(){let s=localStorage.getItem('wandr_session'); if(!s){s=self.crypto?.randomUUID?.()?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(16).slice(2); localStorage.setItem('wandr_session',s);} return s;}
 function loadTrip(){try{return JSON.parse(localStorage.getItem('wandr_trip')||'{}')}catch{return{}}}
 function saveTrip(){localStorage.setItem('wandr_trip',JSON.stringify(trip));}
 
-/* Advanced dialog <-> trip */
 function fillAdvancedFromTrip(){const t=trip||{}; setVal('startDate',t.startDate||''); setVal('endDate',t.endDate||''); setVal('startTime',t.startTime||'09:00'); setVal('endTime',t.endTime||'21:00'); setVal('diet',t.prefs?.food||''); setVal('mobility',t.prefs?.mobility||''); setVal('walkability',t.prefs?.walkability||''); setVal('nightlife',t.prefs?.nightlife||''); setVal('budget',t.prefs?.budget||'$$');}
 function currentTripFromAdvanced(){return{destination:trip.destination||'',startDate:getVal('startDate'),endDate:getVal('endDate'),startTime:getVal('startTime'),endTime:getVal('endTime'),prefs:{food:getVal('diet'),mobility:getVal('mobility'),walkability:getVal('walkability'),nightlife:getVal('nightlife'),budget:getVal('budget')}}}
 
-/* Settings page <-> trip */
 function openSettings(){populateSettings();showSettings();}
 function populateSettings(){const t=trip||{}; setVal('s_dest',t.destination||''); setVal('s_startDate',t.startDate||''); setVal('s_endDate',t.endDate||''); setVal('s_startTime',t.startTime||'09:00'); setVal('s_endTime',t.endTime||'21:00'); setVal('s_diet',t.prefs?.food||''); setVal('s_mobility',t.prefs?.mobility||''); setVal('s_walkability',t.prefs?.walkability||''); setVal('s_nightlife',t.prefs?.nightlife||''); setVal('s_budget',t.prefs?.budget||'$$');}
 function readSettingsIntoTrip(){return{destination:getVal('s_dest'),startDate:getVal('s_startDate'),endDate:getVal('s_endDate'),startTime:getVal('s_startTime'),endTime:getVal('s_endTime'),prefs:{food:getVal('s_diet'),mobility:getVal('s_mobility'),walkability:getVal('s_walkability'),nightlife:getVal('s_nightlife'),budget:getVal('s_budget')}}}
 function setVal(id,v){const el=document.getElementById(id); if(el) el.value=v;}
 function getVal(id){const el=document.getElementById(id); return el?el.value:'';}
-function showLanding(){app.classList.add('hidden');settings.classList.add('hidden');landing.classList.remove('hidden');landingHeader.classList.remove('hidden');}
-function showApp(){landing.classList.add('hidden');landingHeader.classList.add('hidden');settings.classList.add('hidden');app.classList.remove('hidden');appTitle.textContent=trip.destination||'Trip';}
-function showSettings(){landing.classList.add('hidden');landingHeader.classList.add('hidden');app.classList.add('hidden');settings.classList.remove('hidden');}
+function showLanding(){document.body.classList.remove('has-plan');app.classList.add('hidden');settings.classList.add('hidden');landing.classList.remove('hidden');landingHeader.classList.remove('hidden');}
+function showApp(){landing.classList.add('hidden');landingHeader.classList.add('hidden');settings.classList.add('hidden');app.classList.remove('hidden');appTitle.textContent=trip.destination||'Trip'; if(document.getElementById('planGrid').children.length){document.body.classList.add('has-plan');} else {document.body.classList.remove('has-plan');}}
+function showSettings(){app.classList.add('hidden');landing.classList.add('hidden');landingHeader.classList.add('hidden');settings.classList.remove('hidden');}
 
-/* Chat + Plan */
 function append(role,text){const el=document.createElement('div'); el.className='msg '+role; el.textContent=text; document.getElementById('chat').appendChild(el); const c=document.getElementById('chat'); c.scrollTop=c.scrollHeight; return el;}
 function showError(msg){const e=document.getElementById('error'); e.textContent=msg; e.style.display='block'; setTimeout(()=>{e.style.display='none'},5000);}
 function setStatus(t){document.getElementById('chatStatus').textContent=t||'';}
@@ -464,9 +364,13 @@ async function send(){
 
 function renderPlanCards(markdown){
   const grid=document.getElementById('planGrid'); grid.innerHTML='';
-  if(!markdown||!markdown.trim()){grid.innerHTML='<div class="sub">No plan yet. Ask for a plan in Chat.</div>'; return;}
+  if(!markdown||!markdown.trim()){
+    document.body.classList.remove('has-plan');
+    grid.innerHTML='<div class="sub">No plan yet. Ask for a plan in Chat.</div>';
+    return;
+  }
   const dayBlocks=markdown.split(/\n(?=#+\s*Day\s*\d+|Day\s*\d+:)/gi).filter(b=>/day\s*\d+/i.test(b));
-  if(dayBlocks.length===0){const card=document.createElement('div'); card.className='card'; card.innerHTML=marked.parse(markdown); grid.appendChild(card); return;}
+  if(dayBlocks.length===0){const card=document.createElement('div'); card.className='card'; card.innerHTML=marked.parse(markdown); grid.appendChild(card); document.body.classList.add('has-plan'); return;}
   dayBlocks.forEach(block=>{
     const titleMatch=block.match(/^(?:#+\s*)?Day\s*(\d+)/i); const dayNum=titleMatch?titleMatch[1]:'?';
     const sections=extractSections(block);
@@ -476,6 +380,7 @@ function renderPlanCards(markdown){
       ['Morning','Afternoon','Evening','Night'].map(name=>{const html=sections[name]?marked.parse(sections[name].join('\\n')):'<p class="sub">—</p>'; return `<div class="section"><strong>${name}</strong>${html}</div>`;}).join('');
     grid.appendChild(card);
   });
+  document.body.classList.add('has-plan');
 }
 function extractSections(block){
   const lines=block.split('\n'); const sections={Morning:[],Afternoon:[],Evening:[],Night:[]}; let current=null; const headerRe=/^(?:#+\s*)?(Morning|Afternoon|Evening|Night)\b[:\-]?\s*$/i;
@@ -483,7 +388,6 @@ function extractSections(block){
 }
 function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
-/* Exports */
 function exportIcs(){
   const title=`Wandr Trip — ${trip.destination||''}`; const dtStart=(trip.startDate||'').replace(/-/g,''), dtEnd=(trip.endDate||'').replace(/-/g,'');
   const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Wandr//EN','BEGIN:VEVENT',`UID:${sessionId}@wandr`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').split('.')[0]}Z`,`DTSTART;VALUE=DATE:${dtStart}`,`DTEND;VALUE=DATE:${dtEnd}`,`SUMMARY:${title}`,`DESCRIPTION:Generated by Wandr`,'END:VEVENT','END:VCALENDAR'].join('\r\n');
@@ -506,7 +410,6 @@ function exportPdf(){
 }
 function download(name,data,type){const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([data],{type})); a.download=name; a.click(); URL.revokeObjectURL(a.href);}
 
-/* City typeahead (via Worker /geo) */
 const destInput=document.getElementById('landingDestination'), acList=document.getElementById('destSuggest');
 const destInput2=document.getElementById('s_dest'), acList2=document.getElementById('destSuggest2');
 let acOpen=false,acActive=-1,acDebounce; let acOpen2=false,acActive2=-1,acDebounce2;
@@ -524,7 +427,6 @@ destInput2.addEventListener('input',e=>{const q=e.target.value; clearTimeout(acD
 destInput2.addEventListener('keydown',e=>{if(!acOpen2) return; const nodes=acList2.querySelectorAll('.ac-item'); if(e.key==='ArrowDown'){e.preventDefault(); acActive2=Math.min(nodes.length-1,acActive2+1); acSetActive(acList2,destInput2,acActive2);} else if(e.key==='ArrowUp'){e.preventDefault(); acActive2=Math.max(0,acActive2-1); acSetActive(acList2,destInput2,acActive2);} else if(e.key==='Enter'){e.preventDefault(); if(acActive2>=0&&nodes[acActive2]) nodes[acActive2].dispatchEvent(new Event('mousedown')); else acCloseList(acList2,destInput2,'2');} else if(e.key==='Escape'){acCloseList(acList2,destInput2,'2');}});
 document.addEventListener('click',e=>{if(acOpen && !e.target.closest('.autocomplete')) acCloseList(acList,destInput,'1'); if(acOpen2 && !e.target.closest('.autocomplete')) acCloseList(acList2,destInput2,'2');});
 
-/* Health ping */
 const HEALTH_IDS=['healthLanding','healthApp','healthSettings'];
 const HEALTH_ELS=HEALTH_IDS.map(id=>document.getElementById(id)).filter(Boolean);
 function setHealth(el,state){ if(!el) return; el.classList.remove('ok','bad'); if(state==='ok'){el.classList.add('ok'); el.lastChild.textContent=' Connected';} else if(state==='bad'){el.classList.add('bad'); el.lastChild.textContent=' Offline';} else {el.lastChild.textContent=' Checking…';}}
@@ -532,7 +434,6 @@ async function checkHealth(){HEALTH_ELS.forEach(el=>setHealth(el,'checking')); c
 HEALTH_ELS.forEach(el=>el?.addEventListener('click',checkHealth));
 checkHealth(); setInterval(checkHealth,30000); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) checkHealth(); });
 
-/* Init */
 (function(){ if(trip?.destination){document.getElementById('landingDestination').value=trip.destination; document.getElementById('s_dest').value=trip.destination;} })();
 </script>
 </body>
