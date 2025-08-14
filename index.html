@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <title>Wandr — AI Travel Copilot</title>
 
 <!-- minimal libs -->
@@ -10,80 +10,185 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 
 <style>
+  /* ===== Design tokens ===== */
   :root{
     --indigo:#4f46e5; --indigo-50:#eef2ff; --indigo-200:#c7d2fe;
     --ink:#111827; --muted:#6b7280; --line:#e5e7eb; --bg:#f9fafb; --card:#ffffff;
     --radius:14px; --radius-lg:20px; --shadow:0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.06);
+
+    /* mobile spacing scale */
+    --pad-xs:8px; --pad-sm:12px; --pad:16px; --pad-lg:20px; --pad-xl:28px;
+
+    /* readable widths */
+    --mw: 1120px;
   }
   [data-theme="dark"]{
     --ink:#e5e7eb; --muted:#9ca3af; --line:#30363d; --bg:#0b1220; --card:#0f172a;
-    --indigo-50:#0b1220; --indigo-200:#334155; --shadow:0 0 0 rgba(0,0,0,0);
+    --indigo-50:#0b1220; --indigo-200:#334155; --shadow: 0 0 0 rgba(0,0,0,0);
   }
-  *{box-sizing:border-box} html,body{height:100%}
-  body{margin:0;font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;color:var(--ink);background:var(--bg)}
-  a{color:var(--indigo);text-decoration:none}
 
-  header{padding:28px 20px;text-align:center}
-  main{max-width:1100px;margin:0 auto;padding:0 16px 48px}
-  .hidden{display:none!important}
-  .row{display:flex;gap:10px}
-  .stack{display:grid;gap:10px}
-  .btn{appearance:none;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:12px 18px;cursor:pointer;font-weight:600}
-  [data-theme="dark"] .btn{background:#111826;color:var(--ink)}
-  .btn.primary{background:var(--indigo);color:#fff;border-color:var(--indigo)}
-  .btn.ghost{background:transparent}
-  .toggle{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--ink);cursor:pointer;font-weight:600}
-  input,select{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;outline:none;background:var(--card);color:var(--ink)}
+  /* ===== Base ===== */
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
+    color:var(--ink); background:var(--bg);
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  a{color:var(--indigo); text-decoration:none}
 
-  .hero{display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 160px);text-align:center;background:radial-gradient(1200px 600px at 50% -200px,var(--indigo-50),transparent);padding:24px}
-  .hero-card{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);padding:28px;box-shadow:var(--shadow)}
-  .logo{font-weight:800;font-size:28px;letter-spacing:.4px}
-  .sub{color:var(--muted);margin:6px 0 20px}
-  .search{display:flex;gap:10px;flex-direction:column}
+  /* Containers */
+  header{padding:var(--pad-xl) var(--pad); text-align:center}
+  main{max-width:var(--mw); margin:0 auto; padding:0 var(--pad) var(--pad-lg)}
+  .hidden{display:none !important}
+  .row{display:flex; gap:10px}
+  .stack{display:grid; gap:10px}
 
-  .appbar{position:sticky;top:0;z-index:10;background:var(--card);border-bottom:1px solid var(--line);padding:10px 12px;display:flex;gap:8px;align-items:center;justify-content:space-between}
+  /* Buttons / Inputs */
+  .btn{
+    appearance:none; border:1px solid var(--line); background:#fff; color:var(--ink);
+    border-radius:999px; padding:12px 18px; cursor:pointer; font-weight:600;
+  }
+  .btn.primary{ background:var(--indigo); color:#fff; border-color:var(--indigo) }
+  .btn.ghost{ background:transparent }
+  .toggle{
+    display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border:1px solid var(--line);
+    border-radius:999px; background:transparent; color:var(--ink); cursor:pointer; font-weight:600;
+  }
+  input, select, textarea{
+    width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:10px; outline:none;
+    background:var(--card); color:var(--ink);
+  }
+
+  /* ==== Dark mode contrast hardening ==== */
+  [data-theme="dark"] .btn{
+    background:#111827;
+    color:#e5e7eb;
+    border-color:#374151;
+  }
+  [data-theme="dark"] .btn:hover{ border-color:#475569; }
+  [data-theme="dark"] .btn.primary{
+    background:var(--indigo);
+    color:#ffffff;
+    border-color:var(--indigo);
+  }
+  [data-theme="dark"] .toggle{
+    color:#e5e7eb;
+    border-color:#374151;
+    background:transparent;
+  }
+  [data-theme="dark"] input,
+  [data-theme="dark"] select,
+  [data-theme="dark"] textarea{
+    background:#0f172a; color:#e5e7eb; border-color:#374151;
+  }
+  [data-theme="dark"] input::placeholder{ color:#9ca3af; }
+
+  /* ===== Landing ===== */
+  .hero{
+    display:flex; align-items:center; justify-content:center;
+    min-height:calc(100dvh - 180px); text-align:center;
+    background: radial-gradient(1200px 600px at 50% -200px, var(--indigo-50), transparent);
+    padding:var(--pad);
+  }
+  .hero-card{
+    width:100%; max-width:720px; background:var(--card); border:1px solid var(--line);
+    border-radius:var(--radius-lg); padding:var(--pad-lg); box-shadow:var(--shadow);
+  }
+  .logo{font-weight:800; font-size:28px; letter-spacing:.4px}
+  .sub{color:var(--muted); margin:6px 0 16px}
+  .search{display:grid; gap:10px}
+
+  /* ===== App bar ===== */
+  .appbar{
+    position:sticky; top:0; z-index:10; background:var(--card); border-bottom:1px solid var(--line);
+    padding:10px 12px; display:flex; gap:8px; align-items:center; justify-content:space-between;
+  }
   .title{font-weight:700}
-  .cluster{display:flex;gap:8px;align-items:center}
+  .cluster{display:flex; gap:8px; align-items:center}
 
-  .chips{display:flex;gap:8px;overflow:auto;padding:8px 0}
-  .chip{border:1px solid var(--line);background:var(--card);padding:8px 12px;border-radius:999px;white-space:nowrap;cursor:pointer;font-size:14px}
-  .chat{border:1px solid var(--line);background:color-mix(in srgb, var(--card) 92%, #fff 8%);border-radius:var(--radius);padding:12px;height:46vh;overflow:auto}
-  .msg{margin:10px 0;white-space:pre-wrap}
+  /* ===== Chips / Chat / Composer ===== */
+  .chips{display:flex; gap:8px; overflow:auto; padding:8px 0}
+  .chip{border:1px solid var(--line); background:var(--card); padding:8px 12px; border-radius:999px; white-space:nowrap; cursor:pointer; font-size:14px}
+  .chat{
+    border:1px solid var(--line);
+    background:color-mix(in srgb, var(--card) 92%, #fff 8%);
+    border-radius:var(--radius); padding:12px;
+    height: min(60dvh, 480px); /* mobile-friendly height */
+    min-height: 40dvh;
+    overflow:auto;
+  }
+  .msg{margin:10px 0; white-space:pre-wrap}
   .msg.user{text-align:right}
-  .composer{display:flex;gap:8px;margin-top:10px}
-  .composer input{flex:1;padding:14px 16px;border:1px solid var(--line);border-radius:999px;outline:none}
-  .error{display:none;border:1px solid #fecaca;background:#fff1f2;color:#991b1b;border-radius:var(--radius);padding:8px 10px;margin:10px 0}
-  [data-theme="dark"] .error{background:#2a0f12;color:#fecaca;border-color:#7f1d1d}
+  .composer{display:flex; gap:8px; margin-top:10px; position:sticky; bottom:0; background:linear-gradient(180deg, rgba(0,0,0,0), var(--bg) 40%); padding-top:6px}
+  .composer input{flex:1; padding:14px 16px; border:1px solid var(--line); border-radius:999px; outline:none}
 
-  .toolbar{display:flex;gap:8px;position:sticky;bottom:0;background:linear-gradient(180deg,rgba(249,250,251,0),var(--bg) 30%);padding-top:8px}
-  .plan-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
-  .card h3{margin:0 0 6px;font-size:1rem}
-  .badge{display:inline-block;font-size:.72rem;border:1px solid var(--line);padding:2px 8px;border-radius:999px;margin-right:6px;color:var(--ink)}
-  .section{margin:8px 0}.section strong{display:block;margin-bottom:4px}
+  .error{display:none; border:1px solid #fecaca; background:#fff1f2; color:#991b1b; border-radius:var(--radius);
+    padding:8px 10px; margin:10px 0;}
+  [data-theme="dark"] .error{ background:#2a0f12; color:#fecaca; border-color:#7f1d1d }
 
-  .settings-wrap{max-width:720px;margin:0 auto;padding:16px}
-  .settings-section{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow)}
+  /* ===== Plan ===== */
+  .toolbar{
+    display:flex; gap:8px; position:sticky; bottom:0;
+    background:linear-gradient(180deg, rgba(249,250,251,0), var(--bg) 30%);
+    padding-top:8px; flex-wrap:wrap;
+  }
+  .plan-grid{ display:grid; grid-template-columns:1fr; gap:12px; margin-top:12px }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:14px; box-shadow:var(--shadow) }
+  .card h3{ margin:0 0 6px; font-size:1rem }
+  .badge{ display:inline-block; font-size:.72rem; border:1px solid var(--line); padding:2px 8px; border-radius:999px; margin-right:6px; color:var(--ink) }
+  .section{ margin:8px 0 } .section strong{ display:block; margin-bottom:4px }
+
+  /* ===== Settings page ===== */
+  .settings-wrap{max-width:720px; margin:0 auto; padding:var(--pad)}
+  .settings-section{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius-lg); padding:16px; box-shadow:var(--shadow)}
   .settings-section h3{margin:0 0 12px}
 
-  .autocomplete{position:relative}
-  .ac-list{position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-top:6px;box-shadow:var(--shadow);max-height:260px;overflow:auto;z-index:20}
-  .ac-item{padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
-  .ac-item:hover,.ac-item[aria-selected="true"]{background:var(--indigo-50)}
-  .ac-city{font-weight:600}.ac-meta{color:var(--muted);font-size:.9rem;white-space:nowrap}
+  /* ===== City typeahead ===== */
+  .autocomplete { position: relative; }
+  .ac-list {
+    position: absolute; top: 100%; left: 0; right: 0;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; margin-top: 6px; box-shadow: var(--shadow);
+    max-height: min(45dvh, 320px); overflow: auto; z-index: 20;
+  }
+  .ac-item { padding: 12px; cursor: pointer; display:flex; justify-content:space-between; gap:8px; }
+  .ac-item:hover, .ac-item[aria-selected="true"] { background: var(--indigo-50); }
+  .ac-city { font-weight: 600; }
+  .ac-meta { color: var(--muted); font-size: 0.9rem; white-space: nowrap; }
 
-  /* Health status chip */
-  .status-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-weight:600;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--muted);user-select:none;cursor:pointer}
-  .status-chip.ok{color:#059669;border-color:#10b981}
-  .status-chip.bad{color:#b91c1c;border-color:#f87171}
-  .status-dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+  /* ===== Health chip ===== */
+  .status-chip{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:6px 10px; border-radius:999px; font-weight:600; font-size:14px;
+    border:1px solid var(--line); background:var(--card); color:var(--muted);
+    user-select:none; cursor:pointer;
+  }
+  .status-chip.ok{ color:#059669; border-color:#10b981; }
+  .status-chip.bad{ color:#b91c1c; border-color:#f87171; }
+  .status-dot{ width:8px; height:8px; border-radius:50%; background:currentColor; }
 
-  @media (min-width:900px){
-    .search{flex-direction:row}
-    .split{display:grid;grid-template-columns:1.1fr .9fr;gap:18px;align-items:start}
-    .chat{height:60vh}
-    .toolbar{position:static;background:none}
-    .plan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  /* ===== Responsive ===== */
+  /* Mobile-first: single-column by default. */
+  .split{ display:grid; grid-template-columns:1fr; gap:var(--pad); align-items:start; }
+
+  @media (min-width: 760px){
+    .hero{ min-height:calc(100dvh - 180px); }
+    .split{ grid-template-columns: 1.05fr .95fr; gap:18px; }
+    .chat{ height:60dvh; }
+    .toolbar{ position:static; background:none; }
+    .plan-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+  }
+
+  @media (min-width: 1100px){
+    .split{ grid-template-columns: 1.1fr .9fr; }
+  }
+
+  /* iOS viewport quirks: avoid 100vh jumps on scroll */
+  @supports (height: 100dvh) {
+    .hero{ min-height: calc(100dvh - 180px); }
   }
 </style>
 </head>
@@ -93,7 +198,7 @@
 <header id="landingHeader">
   <div class="logo">Wandr</div>
   <div class="sub">Your AI travel copilot — just tell me where to go.</div>
-  <div class="cluster" style="justify-content:center;margin-top:8px;">
+  <div class="cluster" style="justify-content:center;margin-top:8px;flex-wrap:wrap">
     <button id="openSettingsFromLanding" class="btn ghost" type="button">Trip Settings</button>
     <button id="themeToggleLanding" class="toggle" type="button" aria-pressed="false">🌙 Dark</button>
     <span id="healthLanding" class="status-chip" title="Click to re-check"><span class="status-dot"></span> Checking…</span>
@@ -107,7 +212,7 @@
         <input id="landingDestination" type="text" placeholder="Where are you going?" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="destSuggest" />
         <div id="destSuggest" class="ac-list hidden" role="listbox"></div>
       </div>
-      <div class="row">
+      <div class="row" style="flex-wrap:wrap">
         <button id="openAdvanced" class="btn" type="button">Advanced options</button>
         <button id="ctaPlan" class="btn primary" type="button">Plan my trip</button>
       </div>
@@ -122,7 +227,7 @@
       <button id="backToLanding" class="btn" type="button">←</button>
       <div class="title" id="appTitle">Trip</div>
     </div>
-    <div class="cluster">
+    <div class="cluster" style="flex-wrap:wrap">
       <button id="goSettings" class="btn" type="button">Trip Settings</button>
       <button id="themeToggleApp" class="toggle" type="button" aria-pressed="false">🌙 Dark</button>
       <span id="healthApp" class="status-chip" title="Click to re-check"><span class="status-dot"></span> Checking…</span>
@@ -168,7 +273,7 @@
       <button id="backFromSettings" class="btn" type="button">←</button>
       <div class="title">Trip Settings</div>
     </div>
-    <div class="cluster">
+    <div class="cluster" style="flex-wrap:wrap">
       <button id="themeToggleSettings" class="toggle" type="button" aria-pressed="false">🌙 Dark</button>
       <span id="healthSettings" class="status-chip" title="Click to re-check"><span class="status-dot"></span> Checking…</span>
     </div>
@@ -183,22 +288,22 @@
           <div id="destSuggest2" class="ac-list hidden" role="listbox"></div>
         </div>
       </label>
-      <div class="row">
-        <label style="flex:1">Start date <input id="s_startDate" type="date" /></label>
-        <label style="flex:1">End date <input id="s_endDate" type="date" /></label>
+      <div class="row" style="flex-wrap:wrap">
+        <label style="flex:1;min-width:230px">Start date <input id="s_startDate" type="date" /></label>
+        <label style="flex:1;min-width:230px">End date <input id="s_endDate" type="date" /></label>
       </div>
-      <div class="row">
-        <label style="flex:1">Day start <input id="s_startTime" type="time" /></label>
-        <label style="flex:1">Day end <input id="s_endTime" type="time" /></label>
+      <div class="row" style="flex-wrap:wrap">
+        <label style="flex:1;min-width:230px">Day start <input id="s_startTime" type="time" /></label>
+        <label style="flex:1;min-width:230px">Day end <input id="s_endTime" type="time" /></label>
       </div>
     </div>
 
     <div class="settings-section stack">
       <h3>Preferences</h3>
       <label>Food restrictions <input id="s_diet" placeholder="e.g., halal, vegetarian" /></label>
-      <div class="row">
-        <label style="flex:1">Mobility <input id="s_mobility" placeholder="e.g., easy walks, wheelchair" /></label>
-        <label style="flex:1">Walkability
+      <div class="row" style="flex-wrap:wrap">
+        <label style="flex:1;min-width:230px">Mobility <input id="s_mobility" placeholder="e.g., easy walks, wheelchair" /></label>
+        <label style="flex:1;min-width:230px">Walkability
           <select id="s_walkability"><option></option><option>low</option><option>med</option><option>high</option></select>
         </label>
       </div>
@@ -215,7 +320,7 @@
       <button id="deleteLocal" class="btn" type="button">Delete local data (trip + session)</button>
     </div>
 
-    <div class="settings-section row" style="justify-content:flex-end">
+    <div class="settings-section row" style="justify-content:flex-end;flex-wrap:wrap">
       <button id="settingsCancel" class="btn" type="button">Cancel</button>
       <button id="settingsSave" class="btn primary" type="button">Save</button>
     </div>
@@ -229,19 +334,19 @@
     <div class="stack">
       <label>Start date <input id="startDate" type="date" /></label>
       <label>End date <input id="endDate" type="date" /></label>
-      <div class="row">
-        <label style="flex:1">Day start <input id="startTime" type="time" value="09:00" /></label>
-        <label style="flex:1">Day end <input id="endTime" type="time" value="21:00" /></label>
+      <div class="row" style="flex-wrap:wrap">
+        <label style="flex:1;min-width:230px">Day start <input id="startTime" type="time" value="09:00" /></label>
+        <label style="flex:1;min-width:230px">Day end <input id="endTime" type="time" value="21:00" /></label>
       </div>
       <label>Food restrictions <input id="diet" placeholder="e.g., halal, vegetarian" /></label>
-      <div class="row">
-        <label style="flex:1">Mobility <input id="mobility" placeholder="e.g., easy walks, wheelchair" /></label>
-        <label style="flex:1">Walkability <select id="walkability"><option></option><option>low</option><option>med</option><option>high</option></select></label>
+      <div class="row" style="flex-wrap:wrap">
+        <label style="flex:1;min-width:230px">Mobility <input id="mobility" placeholder="e.g., easy walks, wheelchair" /></label>
+        <label style="flex:1;min-width:230px">Walkability <select id="walkability"><option></option><option>low</option><option>med</option><option>high</option></select></label>
       </div>
       <label>Nightlife <select id="nightlife"><option></option><option>low</option><option>med</option><option>high</option></select></label>
       <label>Budget <select id="budget"><option>$</option><option>$$</option><option>$$$</option><option>$$$$</option></select></label>
     </div>
-    <div class="row" style="justify-content:flex-end;margin-top:12px">
+    <div class="row" style="justify-content:flex-end;margin-top:12px;flex-wrap:wrap">
       <button class="btn" value="cancel" type="button" id="dlgCancel">Cancel</button>
       <button class="btn primary" value="default" type="submit">Save</button>
     </div>
