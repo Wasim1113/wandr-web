@@ -3,22 +3,47 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Wandr — AI Trip Copilot</title>
+
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
 <style>
   :root { --pico-primary: #4f46e5; } /* Indigo */
-  body { max-width: 920px; margin: 0 auto; padding-bottom: 24px; }
-  header { margin-top: 12px; }
-  .chat { border: 1px solid #e8e8e8; border-radius: 12px; padding: 12px; height: 52vh; overflow:auto; background:#fafafa }
+  body { max-width: 980px; margin: 0 auto; padding-bottom: 32px; }
+  header { margin: 16px 0 8px; }
+  .muted { color:#6b7280; }
+  .row { display:flex; gap:8px; } .row > * { flex:1; }
+
+  /* Tabs */
+  .tabs { display:flex; gap:8px; margin:12px 0; }
+  .tab { padding:8px 12px; border:1px solid #e5e7eb; border-radius:10px; cursor:pointer; background:#fff; }
+  .tab.active { background:#eef2ff; border-color:#c7d2fe; }
+
+  /* Chat */
+  .chat { border: 1px solid #e8e8e8; border-radius: 12px; padding: 12px; height: 44vh; overflow:auto; background:#fafafa }
   .msg { margin: 10px 0; white-space: pre-wrap; line-height: 1.35; }
   .msg.user { text-align:right }
-  .row { display:flex; gap:8px; }
-  .row > * { flex:1; }
-  .chips { display:flex; gap:8px; flex-wrap: wrap; margin: 8px 0 0 0; }
-  .chip { border: 1px solid #ddd; border-radius: 999px; padding: 6px 10px; background:#fff; cursor:pointer; font-size:.9rem; }
-  .divider { border-top: 1px dashed #ddd; margin: 12px 0; }
-  details summary { font-weight: 600; }
-  .muted { color:#6b7280; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; margin: 8px 0 0; }
+  .chip { border:1px solid #ddd; border-radius:999px; padding:6px 10px; background:#fff; cursor:pointer; font-size:.9rem; }
+
+  /* Plan (cards) */
+  #plan { display:none; }
+  .plan-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:12px; }
+  .card { border:1px solid #e5e7eb; background:#fff; border-radius:12px; padding:14px; }
+  .card h3 { margin:0 0 6px; font-size:1.05rem; }
+  .badge { display:inline-block; font-size:.72rem; border:1px solid #e5e7eb; padding:2px 8px; border-radius:999px; margin-right:6px; }
+  .section { margin:8px 0; }
+  .section strong { display:block; margin-bottom:4px; }
+  .card .actions { display:flex; gap:8px; margin-top:6px; }
+  .error { border:1px solid #fecaca; background:#fff1f2; color:#991b1b; border-radius:8px; padding:8px 10px; margin:8px 0; display:none; }
+
+  /* Modal */
+  dialog#blocked { max-width:520px; border-radius:12px; }
+  dialog::backdrop { background: rgba(0,0,0,.35); }
+
+  /* Form tweaks */
+  details summary { font-weight:600; }
 </style>
 </head>
 <body>
@@ -28,6 +53,7 @@
 </header>
 
 <main>
+  <!-- Trip form -->
   <details open>
     <summary>Trip</summary>
     <div class="grid">
@@ -58,51 +84,85 @@
     <small class="muted">Tip: adjust start/end times to control mornings and evenings in the plan.</small>
   </details>
 
-  <div class="divider"></div>
-
-  <div class="chips">
-    <button class="chip" data-msg="Make mornings shorter and add a late brunch.">Shorter mornings</button>
-    <button class="chip" data-msg="More food stops, fewer museums.">More food, less museums</button>
-    <button class="chip" data-msg="Raise the budget to $$$ for restaurants only.">Raise restaurant budget to $$$</button>
-    <button class="chip" data-msg="Swap tonight's dinner for a casual $$ spot within a 10-minute walk.">Swap dinner only</button>
-    <button class="chip" data-msg="Add one scenic photography spot each afternoon.">Add photo spots</button>
+  <!-- Tabs -->
+  <div class="tabs">
+    <button id="tabChat" class="tab active">Chat</button>
+    <button id="tabPlan" class="tab">Plan</button>
   </div>
 
-  <div class="divider"></div>
+  <!-- Error banner -->
+  <div id="error" class="error"></div>
 
-  <div class="chat" id="chat" aria-live="polite" aria-label="Chat transcript"></div>
+  <!-- Chat -->
+  <section id="chatWrap">
+    <div class="chips">
+      <button class="chip" data-msg="Please use Markdown headings (## Day 1, ## Day 2...) with Morning/Afternoon/Evening/Night sections and budget tags ($ to $$$$).">Format as day cards</button>
+      <button class="chip" data-msg="More food, fewer museums.">More food, less museums</button>
+      <button class="chip" data-msg="Raise restaurant budget to $$$ only.">Raise restaurant budget</button>
+      <button class="chip" data-msg="Add one scenic photography spot each afternoon.">Add photo spots</button>
+      <button class="chip" data-msg="Swap tonight's dinner for a casual $$ spot within a 10-minute walk.">Swap dinner only</button>
+    </div>
 
-  <div class="row" style="margin-top:8px;">
-    <input id="input" placeholder="Tell Wandr what you want (e.g., 3 days, sushi focus, $$)">
-    <button id="send">Send</button>
-  </div>
+    <div class="chat" id="chat" aria-live="polite" aria-label="Chat transcript"></div>
+    <div class="row" style="margin-top:8px;">
+      <input id="input" placeholder="Tell Wandr what you want (e.g., 3 days, sushi focus, $$)">
+      <button id="send">Send</button>
+    </div>
+    <small id="status" class="muted"></small>
+  </section>
 
-  <small id="status" class="muted"></small>
+  <!-- Plan -->
+  <section id="plan">
+    <div class="plan-grid" id="planGrid"></div>
+  </section>
 </main>
+
+<!-- Excluded destination modal -->
+<dialog id="blocked">
+  <article>
+    <header><strong>Heads up</strong></header>
+    <p>That destination isn’t supported right now for safety/data reasons. Try a different location.</p>
+    <footer><button onclick="document.getElementById('blocked').close()">OK</button></footer>
+  </article>
+</dialog>
 
 <script>
 const WORKER = 'https://wandr-worker.wasim1113.workers.dev';
 const sessionId = ensureSession();
-let trip = loadTrip();
 
+let trip = loadTrip();
+let lastAssistantMarkdown = ''; // what we’ll parse into cards
+
+// --- Tabs ---
+const tabChat = document.getElementById('tabChat');
+const tabPlan = document.getElementById('tabPlan');
+const chatWrap = document.getElementById('chatWrap');
+const planEl = document.getElementById('plan');
+
+tabChat.onclick = () => { tabChat.classList.add('active'); tabPlan.classList.remove('active'); chatWrap.style.display='block'; planEl.style.display='none'; };
+tabPlan.onclick = () => { tabPlan.classList.add('active'); tabChat.classList.remove('active'); chatWrap.style.display='none'; planEl.style.display='block'; renderPlanCards(lastAssistantMarkdown); };
+
+// --- Trip form ---
 document.getElementById('saveTrip').onclick = () => {
   trip = currentTripFromUI();
   localStorage.setItem('wandr_trip', JSON.stringify(trip));
   toast('Trip saved.');
 };
 
+// --- Chips ---
 document.querySelectorAll('.chip').forEach(ch => ch.addEventListener('click', () => {
   document.getElementById('input').value = ch.dataset.msg;
   send();
 }));
 
+// --- Chat send ---
 document.getElementById('send').onclick = send;
 document.getElementById('input').addEventListener('keydown', e => { if (e.key==='Enter') send(); });
 
-// ---- UI helpers ----
 function id(x){ return document.getElementById(x); }
 function val(x){ return id(x).value; }
 function toast(t){ id('status').textContent = t; setTimeout(()=>id('status').textContent='', 2200); }
+function showError(t){ const e=id('error'); e.textContent=t; e.style.display='block'; setTimeout(()=>e.style.display='none', 5000); }
 function ensureSession(){
   let s = localStorage.getItem('wandr_session');
   if (!s) { s = self.crypto?.randomUUID?.() ? crypto.randomUUID() : String(Date.now())+'-'+Math.random().toString(16).slice(2); localStorage.setItem('wandr_session', s); }
@@ -141,7 +201,15 @@ function loadTrip(){
   return tt;
 }
 
-// ---- Chat flow ----
+function append(role, text){
+  const el = document.createElement('div');
+  el.className = `msg ${role}`;
+  el.textContent = text;
+  id('chat').appendChild(el);
+  id('chat').scrollTop = id('chat').scrollHeight;
+  return el;
+}
+
 async function send(){
   const text = val('input').trim();
   if (!text) return;
@@ -154,30 +222,30 @@ async function send(){
     return;
   }
 
+  // prepend a tiny format hint to encourage Markdown day cards
+  const userMsg = text + "\n\nPlease format as Markdown with headings like '## Day 1', and subsections 'Morning', 'Afternoon', 'Evening', 'Night'. Include $/$$/$$$/$$$$ tags and short tips.";
+
   append('user', text);
   id('input').value = '';
   id('status').textContent = 'Thinking…';
+  id('send').setAttribute('disabled', 'true');
 
   try {
     const resp = await fetch(`${WORKER}/chat`, {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ sessionId, message: text, trip })
+      body: JSON.stringify({ sessionId, message: userMsg, trip })
     });
 
-    if (resp.status === 429) { append('assistant', 'You hit the daily limit. Export or try tomorrow.'); id('status').textContent=''; return; }
-    if (resp.status === 403) { append('assistant', 'This destination is not supported for safety/data reasons.'); id('status').textContent=''; return; }
-    if (!resp.ok) { 
-      const j = await resp.json().catch(()=>({}));
-      append('assistant', 'Error: '+(j.error||resp.status));
-      id('status').textContent='';
-      return;
-    }
+    if (resp.status === 403) { document.getElementById('blocked').showModal(); id('status').textContent=''; id('send').removeAttribute('disabled'); return; }
+    if (resp.status === 429) { showError('Daily usage cap hit (server). Try again later.'); id('status').textContent=''; id('send').removeAttribute('disabled'); return; }
+    if (!resp.ok) { const j = await resp.json().catch(()=>({})); showError('Error: ' + (j.error || resp.status)); id('status').textContent=''; id('send').removeAttribute('disabled'); return; }
 
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
     const live = append('assistant', '');
+    let full = '';
 
     while (true) {
       const {value, done} = await reader.read();
@@ -186,65 +254,119 @@ async function send(){
       const parts = buffer.split('\n\n');
       buffer = parts.pop() || '';
       for (const p of parts) {
-        if (!p) continue;
-        if (p.startsWith(':')) continue; // keep-alive
+        if (!p || p.startsWith(':')) continue;
         const line = p.replace(/^data:\s*/,'');
         if (!line || line === '[DONE]') continue;
         try {
           const json = JSON.parse(line);
           const t = json.choices?.[0]?.delta?.content || '';
-          if (t) live.textContent += t;
-        } catch { /* ignore partial frames */ }
+          if (t) { live.textContent += t; full += t; }
+        } catch { /* partial frame */ }
       }
-      // auto-scroll
       const chat = id('chat'); chat.scrollTop = chat.scrollHeight;
     }
     id('status').textContent = '';
+    id('send').removeAttribute('disabled');
+
+    // keep the latest assistant text as Markdown for Plan view
+    lastAssistantMarkdown = full;
+    // auto-render plan if user switches tabs
+    // (or render immediately if you prefer: renderPlanCards(full))
+
   } catch (err) {
-    append('assistant', 'Network error. Check Worker URL and try again.');
+    showError('Network error. Check Worker URL and try again.');
     id('status').textContent = '';
+    id('send').removeAttribute('disabled');
   }
 }
 
-function append(role, text){
-  const el = document.createElement('div');
-  el.className = `msg ${role}`;
-  el.textContent = text;
-  id('chat').appendChild(el);
-  id('chat').scrollTop = id('chat').scrollHeight;
-  return el;
-}
+// --- Plan cards rendering ---
+function renderPlanCards(markdown){
+  const grid = document.getElementById('planGrid');
+  grid.innerHTML = '';
+  if (!markdown || !markdown.trim()) {
+    grid.innerHTML = '<div class="muted">No plan yet. Ask for a plan in Chat.</div>';
+    return;
+  }
 
-// ---- Exports ----
-// PDF export using jsPDF (captures last assistant message as the itinerary)
-document.getElementById('exportPdf').onclick = () => {
-  const lastAssistant = Array.from(document.querySelectorAll('.msg.assistant')).pop();
-  const itineraryText = lastAssistant ? lastAssistant.textContent : 'No itinerary yet.';
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: 'pt', format: 'letter' }); // 612 x 792 pt
-  const margin = 48; let cursor = margin;
+  // Light parser: split by "Day X" headings (## Day 1, Day 1:, etc.)
+  const dayBlocks = markdown
+    .split(/\n(?=#+\s*Day\s*\d+|(?=Day\s*\d+:))/gi)
+    .filter(b => /day\s*\d+/i.test(b));
 
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(18);
-  doc.text(`Wandr — ${trip.destination || 'Your Trip'}`, margin, cursor); cursor += 12;
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
-  const sub = `${trip.startDate || ''} → ${trip.endDate || ''}  |  ${trip.startTime || '09:00'}–${trip.endTime || '21:00'}  |  Budget: ${trip.prefs?.budget || '$$'}`;
-  cursor += 18; doc.text(sub, margin, cursor); cursor += 18;
+  if (dayBlocks.length === 0) {
+    // Fallback: render whole markdown in a single card
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = marked.parse(markdown);
+    grid.appendChild(card);
+    return;
+  }
 
-  const wrap = (text, width) => doc.splitTextToSize(text, width);
-  const paragraphs = itineraryText.split(/\n{2,}/);
+  dayBlocks.forEach(block => {
+    const titleMatch = block.match(/^(?:#+\s*)?Day\s*(\d+)[^\n]*|^Day\s*(\d+):/i);
+    const dayNum = titleMatch ? (titleMatch[1] || titleMatch[2]) : '?';
 
-  paragraphs.forEach((p, i) => {
-    const lines = wrap(p, 612 - margin*2);
-    const height = lines.length * 14;
-    if (cursor + height + 40 > 792 - margin) { doc.addPage(); cursor = margin; }
-    doc.text(lines, margin, cursor); cursor += height + 12;
-    if (i < paragraphs.length - 1) { doc.setDrawColor(220); doc.line(margin, cursor, 612-margin, cursor); cursor += 12; }
+    // Extract subsections
+    const sections = extractSections(block);
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    const badges = [];
+    const budgetTag = (trip.prefs?.budget || '').trim();
+    if (budgetTag) badges.push(budgetTag);
+    if (trip.prefs?.food) badges.push(trip.prefs.food);
+    if (trip.prefs?.mobility) badges.push(trip.prefs.mobility);
+
+    card.innerHTML = `
+      <h3>Day ${dayNum}</h3>
+      <div>${badges.map(b=>`<span class="badge">${escapeHtml(b)}</span>`).join(' ')}</div>
+      ${['Morning','Afternoon','Evening','Night'].map(name=>{
+        const html = sections[name] ? marked.parse(sections[name].join('\n')) : '<p class="muted">—</p>';
+        return `<div class="section"><strong>${name}</strong>${html}</div>`;
+      }).join('')}
+      <div class="actions">
+        <button class="secondary" data-day="${dayNum}" data-action="regen">Regenerate this day</button>
+        <button class="secondary" data-day="${dayNum}" data-action="earlier">Make this day earlier</button>
+      </div>
+    `;
+    grid.appendChild(card);
   });
 
-  doc.save(`Wandr_${(trip.destination||'trip').replace(/\s+/g,'_')}.pdf`);
-};
+  // Wire action buttons
+  grid.querySelectorAll('button[data-action]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const day = btn.dataset.day;
+      const action = btn.dataset.action;
+      const tweak = action === 'regen'
+        ? `Regenerate Day ${day} with the same vibe; keep top attractions but vary food.`
+        : `Shift Day ${day} earlier by 1 hour and favor walks under 10 minutes.`;
+      id('input').value = tweak;
+      tabChat.click();
+      send();
+    });
+  });
+}
 
-// Minimal .ics (whole-trip placeholder). You can later extend to per-event.
+// Pull lines under "Morning/Afternoon/Evening/Night" subheaders
+function extractSections(block){
+  const lines = block.split('\n');
+  const sections = { Morning:[], Afternoon:[], Evening:[], Night:[] };
+  let current = null;
+  const headerRe = /^(?:#+\s*)?(Morning|Afternoon|Evening|Night)\b[:\-]?\s*$/i;
+
+  for (let raw of lines) {
+    const m = raw.match(headerRe);
+    if (m) { current = m[1][0].toUpperCase() + m[1].slice(1).toLowerCase(); continue; }
+    if (!current) continue;
+    sections[current].push(raw);
+  }
+  return sections;
+}
+
+function escapeHtml(s){ return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// --- Exports ---
 document.getElementById('exportIcs').onclick = () => {
   const title = `Wandr Trip — ${trip.destination||''}`;
   const dtStart = (trip.startDate || '').replace(/-/g,'');
@@ -264,6 +386,44 @@ document.getElementById('exportIcs').onclick = () => {
   a.href = URL.createObjectURL(new Blob([ics], {type:'text/calendar'}));
   a.download = 'wandr-trip.ics';
   a.click(); URL.revokeObjectURL(a.href);
+};
+
+document.getElementById('exportPdf').onclick = () => {
+  // Export from current Plan view; build if empty
+  if (!planEl.style.display || planEl.style.display === 'none') {
+    renderPlanCards(lastAssistantMarkdown);
+  }
+  const cards = Array.from(document.querySelectorAll('#planGrid .card'));
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'letter' });
+  const margin = 48; let y = margin;
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(18);
+  doc.text(`Wandr — ${trip.destination || 'Your Trip'}`, margin, y); y += 20;
+  doc.setFont('helvetica','normal'); doc.setFontSize(11);
+  doc.text(`${trip.startDate || ''} → ${trip.endDate || ''}  |  ${trip.startTime || '09:00'}–${trip.endTime || '21:00'}  |  Budget: ${trip.prefs?.budget || '$$'}`, margin, y);
+  y += 18;
+
+  const pageH = 792, pageW = 612, width = pageW - margin*2;
+  cards.forEach((c, idx) => {
+    const title = c.querySelector('h3')?.textContent || `Day ${idx+1}`;
+    const sections = c.querySelectorAll('.section');
+    const parts = [title];
+    sections.forEach(s=>{
+      const label = s.querySelector('strong')?.textContent || '';
+      const text = s.innerText.replace(label,'').trim();
+      parts.push(`\n${label}\n${text}`);
+    });
+    const block = parts.join('\n\n');
+    const lines = doc.splitTextToSize(block, width);
+    const h = lines.length * 14 + 10;
+    if (y + h > pageH - margin) { doc.addPage(); y = margin; }
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.text(title, margin, y); y += 16;
+    doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.text(lines.slice(1), margin, y); y += h - 16;
+    if (idx < cards.length - 1) { doc.setDrawColor(220); doc.line(margin, y, pageW - margin, y); y += 10; }
+  });
+
+  doc.save(`Wandr_${(trip.destination||'trip').replace(/\s+/g,'_')}.pdf`);
 };
 </script>
 </body>
