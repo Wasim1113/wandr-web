@@ -1,320 +1,392 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wandr — AI Trip Copilot</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Wandr — AI Travel Copilot</title>
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+<!-- Minimal deps for markdown + PDF -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 
 <style>
-  :root { --pico-primary: #4f46e5; } /* Indigo */
-  body { max-width: 980px; margin: 0 auto; padding-bottom: 32px; }
-  header { margin: 16px 0 8px; }
-  .muted { color:#6b7280; }
-  .row { display:flex; gap:8px; } .row > * { flex:1; }
+  /* ====== Base / Tokens ====== */
+  :root{
+    --indigo:#4f46e5; --indigo-50:#eef2ff; --indigo-200:#c7d2fe;
+    --ink:#111827; --muted:#6b7280; --line:#e5e7eb; --bg:#f9fafb; --card:#ffffff;
+    --radius:14px; --radius-lg:20px;
+    --shadow:0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.06);
+  }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
+       color:var(--ink); background:var(--bg);}
 
-  /* Tabs */
-  .tabs { display:flex; gap:8px; margin:12px 0; }
-  .tab { padding:8px 12px; border:1px solid #e5e7eb; border-radius:10px; cursor:pointer; background:#fff; }
-  .tab.active { background:#eef2ff; border-color:#c7d2fe; }
+  /* ====== Layout ====== */
+  header{padding:28px 20px; text-align:center}
+  main{max-width:1100px; margin:0 auto; padding:0 16px 48px}
+  .hidden{display:none !important}
 
-  /* Chat */
-  .chat { border: 1px solid #e8e8e8; border-radius: 12px; padding: 12px; height: 44vh; overflow:auto; background:#fafafa }
-  .msg { margin: 10px 0; white-space: pre-wrap; line-height: 1.35; }
-  .msg.user { text-align:right }
-  .chips { display:flex; gap:8px; flex-wrap:wrap; margin: 8px 0 0; }
-  .chip { border:1px solid #ddd; border-radius:999px; padding:6px 10px; background:#fff; cursor:pointer; font-size:.9rem; }
+  /* ====== Landing ====== */
+  .hero{
+    display:flex; align-items:center; justify-content:center;
+    min-height:calc(100vh - 160px); text-align:center;
+    background: radial-gradient(1200px 600px at 50% -200px, var(--indigo-50), transparent);
+    padding:24px;
+  }
+  .hero-card{
+    width:100%; max-width:720px; background:var(--card); border:1px solid var(--line);
+    border-radius:var(--radius-lg); padding:28px; box-shadow:var(--shadow);
+  }
+  .logo{font-weight:800; font-size:28px; letter-spacing:.4px}
+  .sub{color:var(--muted); margin:6px 0 20px}
 
-  /* Plan (cards) */
-  #plan { display:none; }
-  .plan-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:12px; }
-  .card { border:1px solid #e5e7eb; background:#fff; border-radius:12px; padding:14px; }
-  .card h3 { margin:0 0 6px; font-size:1.05rem; }
-  .badge { display:inline-block; font-size:.72rem; border:1px solid #e5e7eb; padding:2px 8px; border-radius:999px; margin-right:6px; }
-  .section { margin:8px 0; }
-  .section strong { display:block; margin-bottom:4px; }
-  .card .actions { display:flex; gap:8px; margin-top:6px; }
-  .error { border:1px solid #fecaca; background:#fff1f2; color:#991b1b; border-radius:8px; padding:8px 10px; margin:8px 0; display:none; }
+  .search{
+    display:flex; gap:10px; flex-direction:column;
+  }
+  .search input[type="text"]{
+    width:100%; padding:16px 18px; border:1px solid var(--line); border-radius:999px;
+    font-size:16px; outline:none;
+  }
+  .row{display:flex; gap:10px}
+  .btn{
+    appearance:none; border:1px solid var(--line); background:#fff; color:var(--ink);
+    border-radius:999px; padding:12px 18px; cursor:pointer; font-weight:600;
+  }
+  .btn.primary{ background:var(--indigo); color:#fff; border-color:var(--indigo) }
+  .link{ color:var(--indigo); background:none; border:none; padding:0; cursor:pointer }
 
-  /* Modal */
-  dialog#blocked { max-width:520px; border-radius:12px; }
-  dialog::backdrop { background: rgba(0,0,0,.35); }
+  /* ====== Top App Bar (chat/detail) ====== */
+  .appbar{
+    position:sticky; top:0; z-index:10; background:#fff; border-bottom:1px solid var(--line);
+    padding:10px 12px; display:flex; gap:8px; align-items:center; justify-content:space-between;
+  }
+  .title{font-weight:700}
+  .kebab{width:40px; height:40px; border-radius:999px; border:1px solid var(--line); background:#fff; cursor:pointer}
 
-  /* Form tweaks */
-  details summary { font-weight:600; }
+  /* ====== Chat ====== */
+  .chips{display:flex; gap:8px; overflow:auto; padding:8px 0}
+  .chip{border:1px solid var(--line); background:#fff; padding:8px 12px; border-radius:999px; white-space:nowrap; cursor:pointer; font-size:14px}
+  .chat{border:1px solid var(--line); background:#fafafa; border-radius:var(--radius); padding:12px; height:46vh; overflow:auto}
+  .msg{margin:10px 0; white-space:pre-wrap}
+  .msg.user{ text-align:right }
+  .composer{display:flex; gap:8px; margin-top:10px}
+  .composer input{flex:1; padding:14px 16px; border:1px solid var(--line); border-radius:999px; outline:none}
+  .composer .btn{padding:12px 18px}
+
+  .error{display:none; border:1px solid #fecaca; background:#fff1f2; color:#991b1b; border-radius:var(--radius);
+    padding:8px 10px; margin:10px 0;}
+
+  /* ====== Detail / Plan ====== */
+  .toolbar{display:flex; gap:8px; position:sticky; bottom:0; background:linear-gradient(180deg, rgba(249,250,251,0), #f9fafb 30%); padding-top:8px}
+  .plan-grid{ display:grid; grid-template-columns:1fr; gap:12px; margin-top:12px }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:var(--radius); padding:14px; box-shadow:var(--shadow) }
+  .card h3{ margin:0 0 6px; font-size:1rem }
+  .badge{ display:inline-block; font-size:.72rem; border:1px solid var(--line); padding:2px 8px; border-radius:999px; margin-right:6px; color:#374151 }
+  .section{ margin:8px 0 } .section strong{ display:block; margin-bottom:4px }
+
+  /* ====== Responsive (Desktop) ====== */
+  @media (min-width: 900px){
+    .search{ flex-direction:row }
+    .split{ display:grid; grid-template-columns: 1.1fr .9fr; gap:18px; align-items:start; }
+    .chat{ height:60vh }
+    .toolbar{ position:static; background:none }
+    .plan-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+  }
+
+  /* ====== Dialogs ====== */
+  dialog{ border:1px solid var(--line); border-radius:var(--radius-lg); max-width:540px; width:calc(100% - 32px) }
+  dialog::backdrop{ background:rgba(0,0,0,.35) }
+  .dialog-actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:12px }
+  .stack{ display:grid; gap:10px }
+  .stack input, .stack select{ padding:12px 14px; border:1px solid var(--line); border-radius:10px; outline:none; }
 </style>
 </head>
 <body>
-<header>
-  <h1>Wandr</h1>
-  <p class="secondary">Chat with an AI agent to build a time-boxed itinerary. Export to PDF or .ics when ready.</p>
+
+<!-- ====== Landing ====== -->
+<header id="landingHeader">
+  <div class="logo">Wandr</div>
+  <div class="sub">Your AI travel copilot — just tell me where to go.</div>
 </header>
 
-<main>
-  <!-- Trip form -->
-  <details open>
-    <summary>Trip</summary>
-    <div class="grid">
-      <input id="dest" placeholder="Destination (e.g., Tokyo, Japan)">
-      <input id="start" type="date">
-      <input id="end" type="date">
+<section id="landing" class="hero">
+  <div class="hero-card" role="region" aria-label="Start planning">
+    <div class="search">
+      <input id="landingDestination" type="text" placeholder="Where are you going?" />
+      <div class="row">
+        <button id="openAdvanced" class="btn" type="button">Advanced options</button>
+        <button id="ctaPlan" class="btn primary" type="button">Plan my trip</button>
+      </div>
     </div>
-    <div class="grid">
-      <input id="startTime" type="time" value="09:00" title="Daily start time">
-      <input id="endTime" type="time" value="21:00" title="Daily end time">
-    </div>
-    <div class="grid">
-      <input id="diet" placeholder="Food restrictions (e.g., halal, vegetarian)">
-      <input id="mobility" placeholder="Mobility (e.g., easy walks, wheelchair)">
-    </div>
-    <div class="grid">
-      <input id="walkability" placeholder="Walkability (low/med/high)">
-      <input id="nightlife" placeholder="Nightlife (low/med/high)">
-      <select id="budget" title="Overall budget band">
-        <option>$</option><option>$$</option><option>$$$</option><option>$$$$</option>
-      </select>
-    </div>
-    <div class="row">
-      <button id="saveTrip">Save Trip</button>
-      <button id="exportPdf" class="contrast">Export PDF</button>
-      <button id="exportIcs" class="secondary">Export .ics</button>
-    </div>
-    <small class="muted">Tip: adjust start/end times to control mornings and evenings in the plan.</small>
-  </details>
+  </div>
+</section>
 
-  <!-- Tabs -->
-  <div class="tabs">
-    <button id="tabChat" class="tab active">Chat</button>
-    <button id="tabPlan" class="tab">Plan</button>
+<!-- ====== App (Chat + Detail) ====== -->
+<section id="app" class="hidden">
+  <div class="appbar">
+    <button id="backToLanding" class="btn" type="button">←</button>
+    <div class="title" id="appTitle">Trip</div>
+    <button class="kebab" id="menuBtn" title="Menu">⋮</button>
   </div>
 
-  <!-- Error banner -->
-  <div id="error" class="error"></div>
+  <main class="split">
+    <!-- Left: Chat -->
+    <section aria-label="Chat builder">
+      <div class="chips" id="chips">
+        <button class="chip" data-msg="Format the itinerary as Markdown with headings (## Day 1, ## Day 2) and Morning/Afternoon/Evening/Night sections, with $/$$/$$$/$$$$ tags.">Format as day cards</button>
+        <button class="chip" data-msg="More food, fewer museums.">More food, less museums</button>
+        <button class="chip" data-msg="Shorter walking distances.">Shorter walks</button>
+        <button class="chip" data-msg="Luxury dining only ($$$$).">Luxury only</button>
+      </div>
 
-  <!-- Chat -->
-  <section id="chatWrap">
-    <div class="chips">
-      <button class="chip" data-msg="Please use Markdown headings (## Day 1, ## Day 2...) with Morning/Afternoon/Evening/Night sections and budget tags ($ to $$$$).">Format as day cards</button>
-      <button class="chip" data-msg="More food, fewer museums.">More food, less museums</button>
-      <button class="chip" data-msg="Raise restaurant budget to $$$ only.">Raise restaurant budget</button>
-      <button class="chip" data-msg="Add one scenic photography spot each afternoon.">Add photo spots</button>
-      <button class="chip" data-msg="Swap tonight's dinner for a casual $$ spot within a 10-minute walk.">Swap dinner only</button>
+      <div id="error" class="error"></div>
+      <div id="chat" class="chat" aria-live="polite" aria-label="Chat transcript"></div>
+
+      <div class="composer">
+        <input id="chatInput" placeholder="Tell Wandr what you want (e.g., 3 days, sushi focus, $$)" />
+        <button id="sendBtn" class="btn primary" type="button">Send</button>
+      </div>
+      <small id="chatStatus" class="sub" style="display:block;margin-top:6px;"></small>
+    </section>
+
+    <!-- Right: Plan -->
+    <section aria-label="Itinerary detail">
+      <div class="toolbar">
+        <button id="exportPdf" class="btn primary" type="button">Export PDF</button>
+        <button id="exportIcs" class="btn" type="button">Export .ics</button>
+        <button id="editTrip" class="btn" type="button">Edit trip</button>
+      </div>
+      <div id="planGrid" class="plan-grid" aria-live="polite"></div>
+    </section>
+  </main>
+</section>
+
+<!-- ====== Advanced Options Dialog ====== -->
+<dialog id="advancedDlg">
+  <form method="dialog">
+    <h3 style="margin:0 0 8px">Trip options</h3>
+    <div class="stack">
+      <label>Start date <input id="startDate" type="date" /></label>
+      <label>End date <input id="endDate" type="date" /></label>
+      <div class="row">
+        <label style="flex:1">Day start <input id="startTime" type="time" value="09:00" /></label>
+        <label style="flex:1">Day end <input id="endTime" type="time" value="21:00" /></label>
+      </div>
+      <label>Food restrictions <input id="diet" placeholder="e.g., halal, vegetarian" /></label>
+      <div class="row">
+        <label style="flex:1">Mobility <input id="mobility" placeholder="e.g., easy walks, wheelchair" /></label>
+        <label style="flex:1">Walkability <select id="walkability"><option></option><option>low</option><option>med</option><option>high</option></select></label>
+      </div>
+      <label>Nightlife <select id="nightlife"><option></option><option>low</option><option>med</option><option>high</option></select></label>
+      <label>Budget <select id="budget"><option>$</option><option>$$</option><option>$$$</option><option>$$$$</option></select></label>
     </div>
-
-    <div class="chat" id="chat" aria-live="polite" aria-label="Chat transcript"></div>
-    <div class="row" style="margin-top:8px;">
-      <input id="input" placeholder="Tell Wandr what you want (e.g., 3 days, sushi focus, $$)">
-      <button id="send">Send</button>
+    <div class="dialog-actions">
+      <button class="btn" value="cancel" type="button" id="dlgCancel">Cancel</button>
+      <button class="btn primary" value="default" type="submit">Save</button>
     </div>
-    <small id="status" class="muted"></small>
-  </section>
+  </form>
+</dialog>
 
-  <!-- Plan -->
-  <section id="plan">
-    <div class="plan-grid" id="planGrid"></div>
-  </section>
-</main>
-
-<!-- Excluded destination modal -->
-<dialog id="blocked">
+<!-- ====== Blocked Destination Modal ====== -->
+<dialog id="blockedDlg">
   <article>
-    <header><strong>Heads up</strong></header>
+    <h3>Heads up</h3>
     <p>That destination isn’t supported right now for safety/data reasons. Try a different location.</p>
-    <footer><button onclick="document.getElementById('blocked').close()">OK</button></footer>
+    <div class="dialog-actions">
+      <button class="btn primary" onclick="document.getElementById('blockedDlg').close()">OK</button>
+    </div>
   </article>
 </dialog>
 
 <script>
+/* ---------- App State ---------- */
 const WORKER = 'https://wandr-worker.wasim1113.workers.dev';
 const sessionId = ensureSession();
-
 let trip = loadTrip();
-let lastAssistantMarkdown = ''; // what we’ll parse into cards
+let lastAssistantMarkdown = '';
 
-// --- Tabs ---
-const tabChat = document.getElementById('tabChat');
-const tabPlan = document.getElementById('tabPlan');
-const chatWrap = document.getElementById('chatWrap');
-const planEl = document.getElementById('plan');
+/* ---------- Landing handlers ---------- */
+const landing = document.getElementById('landing');
+const landingHeader = document.getElementById('landingHeader');
+const app = document.getElementById('app');
+const appTitle = document.getElementById('appTitle');
 
-tabChat.onclick = () => { tabChat.classList.add('active'); tabPlan.classList.remove('active'); chatWrap.style.display='block'; planEl.style.display='none'; };
-tabPlan.onclick = () => { tabPlan.classList.add('active'); tabChat.classList.remove('active'); chatWrap.style.display='none'; planEl.style.display='block'; renderPlanCards(lastAssistantMarkdown); };
+document.getElementById('openAdvanced').onclick = () => {
+  fillAdvancedFromTrip(); document.getElementById('advancedDlg').showModal();
+};
+document.getElementById('dlgCancel').onclick = () => document.getElementById('advancedDlg').close();
 
-// --- Trip form ---
-document.getElementById('saveTrip').onclick = () => {
-  trip = currentTripFromUI();
-  localStorage.setItem('wandr_trip', JSON.stringify(trip));
-  toast('Trip saved.');
+document.getElementById('advancedDlg').addEventListener('close', () => {
+  // on submit, save values to trip + localStorage
+  if (document.getElementById('advancedDlg').returnValue !== 'cancel') {
+    trip = currentTripFromAdvanced();
+    saveTrip(); // persist
+  }
+});
+
+document.getElementById('ctaPlan').onclick = () => {
+  const dest = document.getElementById('landingDestination').value.trim();
+  if (!dest) { alert('Please enter a destination'); return; }
+  trip.destination = dest;
+  saveTrip();
+  appTitle.textContent = dest;
+  showApp();
 };
 
-// --- Chips ---
-document.querySelectorAll('.chip').forEach(ch => ch.addEventListener('click', () => {
-  document.getElementById('input').value = ch.dataset.msg;
-  send();
-}));
+/* ---------- App top bar ---------- */
+document.getElementById('backToLanding').onclick = () => {
+  app.classList.add('hidden'); landing.classList.remove('hidden'); landingHeader.classList.remove('hidden');
+};
 
-// --- Chat send ---
-document.getElementById('send').onclick = send;
-document.getElementById('input').addEventListener('keydown', e => { if (e.key==='Enter') send(); });
+/* ---------- Chat actions ---------- */
+document.getElementById('sendBtn').onclick = send;
+document.getElementById('chatInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); send(); } });
+document.getElementById('chips').addEventListener('click', (e)=>{
+  const el = e.target.closest('.chip'); if(!el) return;
+  document.getElementById('chatInput').value = el.dataset.msg; send();
+});
 
-function id(x){ return document.getElementById(x); }
-function val(x){ return id(x).value; }
-function toast(t){ id('status').textContent = t; setTimeout(()=>id('status').textContent='', 2200); }
-function showError(t){ const e=id('error'); e.textContent=t; e.style.display='block'; setTimeout(()=>e.style.display='none', 5000); }
+/* ---------- Trip edit ---------- */
+document.getElementById('editTrip').onclick = () => { fillAdvancedFromTrip(); document.getElementById('advancedDlg').showModal(); };
+
+/* ---------- Export ---------- */
+document.getElementById('exportIcs').onclick = exportIcs;
+document.getElementById('exportPdf').onclick = exportPdf;
+
+/* ---------- Helpers ---------- */
 function ensureSession(){
   let s = localStorage.getItem('wandr_session');
-  if (!s) { s = self.crypto?.randomUUID?.() ? crypto.randomUUID() : String(Date.now())+'-'+Math.random().toString(16).slice(2); localStorage.setItem('wandr_session', s); }
+  if (!s) { s = self.crypto?.randomUUID?.() ? crypto.randomUUID() : String(Date.now())+'-'+Math.random().toString(16).slice(2);
+    localStorage.setItem('wandr_session', s); }
   return s;
 }
-function currentTripFromUI(){ 
+function loadTrip(){
+  try { return JSON.parse(localStorage.getItem('wandr_trip')||'{}'); } catch { return {}; }
+}
+function saveTrip(){ localStorage.setItem('wandr_trip', JSON.stringify(trip)); }
+
+/* Advanced dialog <-> trip */
+function fillAdvancedFromTrip(){
+  const t = trip || {};
+  setVal('startDate', t.startDate||'');
+  setVal('endDate', t.endDate||'');
+  setVal('startTime', t.startTime||'09:00');
+  setVal('endTime', t.endTime||'21:00');
+  setVal('diet', t.prefs?.food||'');
+  setVal('mobility', t.prefs?.mobility||'');
+  setVal('walkability', t.prefs?.walkability||'');
+  setVal('nightlife', t.prefs?.nightlife||'');
+  setVal('budget', t.prefs?.budget||'$$');
+}
+function currentTripFromAdvanced(){
   return {
-    destination: val('dest'),
-    startDate: val('start'),
-    endDate: val('end'),
-    startTime: val('startTime'),
-    endTime: val('endTime'),
+    destination: trip.destination || '',
+    startDate: getVal('startDate'),
+    endDate: getVal('endDate'),
+    startTime: getVal('startTime'),
+    endTime: getVal('endTime'),
     prefs: {
-      food: val('diet'),
-      mobility: val('mobility'),
-      walkability: val('walkability'),
-      nightlife: val('nightlife'),
-      budget: val('budget')
+      food: getVal('diet'),
+      mobility: getVal('mobility'),
+      walkability: getVal('walkability'),
+      nightlife: getVal('nightlife'),
+      budget: getVal('budget')
     }
   };
 }
-function loadTrip(){
-  const t = localStorage.getItem('wandr_trip');
-  if (!t) return {};
-  const tt = JSON.parse(t);
-  id('dest').value = tt.destination || '';
-  id('start').value = tt.startDate || '';
-  id('end').value = tt.endDate || '';
-  id('startTime').value = tt.startTime || '09:00';
-  id('endTime').value = tt.endTime || '21:00';
-  id('diet').value = tt.prefs?.food || '';
-  id('mobility').value = tt.prefs?.mobility || '';
-  id('walkability').value = tt.prefs?.walkability || '';
-  id('nightlife').value = tt.prefs?.nightlife || '';
-  id('budget').value = tt.prefs?.budget || '$$';
-  return tt;
+function setVal(id, v){ const el = document.getElementById(id); if(el) el.value = v; }
+function getVal(id){ const el = document.getElementById(id); return el ? el.value : ''; }
+
+/* Show app view + hydrate title */
+function showApp(){
+  landing.classList.add('hidden'); landingHeader.classList.add('hidden'); app.classList.remove('hidden');
+  appTitle.textContent = trip.destination || 'Trip';
 }
 
+/* Chat append and status */
 function append(role, text){
-  const el = document.createElement('div');
-  el.className = `msg ${role}`;
-  el.textContent = text;
-  id('chat').appendChild(el);
-  id('chat').scrollTop = id('chat').scrollHeight;
-  return el;
+  const el = document.createElement('div'); el.className = 'msg ' + role;
+  el.textContent = text; document.getElementById('chat').appendChild(el);
+  const c = document.getElementById('chat'); c.scrollTop = c.scrollHeight; return el;
 }
+function showError(msg){ const e = document.getElementById('error'); e.textContent = msg; e.style.display = 'block';
+  setTimeout(()=>{ e.style.display = 'none'; }, 5000); }
 
+/* ---------- Chat send (streams) ---------- */
 async function send(){
-  const text = val('input').trim();
-  if (!text) return;
+  const input = document.getElementById('chatInput'); const text = input.value.trim(); if(!text) return;
 
-  // capture latest trip state
-  trip = currentTripFromUI();
+  // ensure we have a destination
+  if(!trip.destination){ showError('Set a destination first.'); return; }
 
-  if (!trip.destination || !trip.startDate || !trip.endDate) {
-    toast('Please fill Destination, Start, End dates, then Save Trip.');
-    return;
-  }
-
-  // prepend a tiny format hint to encourage Markdown day cards
+  // gentle formatting nudge for plan clarity
   const userMsg = text + "\n\nPlease format as Markdown with headings like '## Day 1', and subsections 'Morning', 'Afternoon', 'Evening', 'Night'. Include $/$$/$$$/$$$$ tags and short tips.";
 
   append('user', text);
-  id('input').value = '';
-  id('status').textContent = 'Thinking…';
-  id('send').setAttribute('disabled', 'true');
+  input.value = ''; setStatus('Thinking…'); disableSend(true);
 
-  try {
+  try{
     const resp = await fetch(`${WORKER}/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ sessionId, message: userMsg, trip })
     });
 
-    if (resp.status === 403) { document.getElementById('blocked').showModal(); id('status').textContent=''; id('send').removeAttribute('disabled'); return; }
-    if (resp.status === 429) { showError('Daily usage cap hit (server). Try again later.'); id('status').textContent=''; id('send').removeAttribute('disabled'); return; }
-    if (!resp.ok) { const j = await resp.json().catch(()=>({})); showError('Error: ' + (j.error || resp.status)); id('status').textContent=''; id('send').removeAttribute('disabled'); return; }
+    if (resp.status === 403){ document.getElementById('blockedDlg').showModal(); setStatus(''); disableSend(false); return; }
+    if (resp.status === 429){ showError('Daily usage cap hit (server). Try later.'); setStatus(''); disableSend(false); return; }
+    if (!resp.ok){ const j = await resp.json().catch(()=>({})); showError('Error: ' + (j.error || resp.status)); setStatus(''); disableSend(false); return; }
 
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    const live = append('assistant', '');
-    let full = '';
+    const reader = resp.body.getReader(); const decoder = new TextDecoder();
+    let buffer = ''; const live = append('assistant',''); let full = '';
 
-    while (true) {
-      const {value, done} = await reader.read();
-      if (done) break;
+    while(true){
+      const {value, done} = await reader.read(); if(done) break;
       buffer += decoder.decode(value, {stream:true});
-      const parts = buffer.split('\n\n');
-      buffer = parts.pop() || '';
-      for (const p of parts) {
-        if (!p || p.startsWith(':')) continue;
-        const line = p.replace(/^data:\s*/,'');
-        if (!line || line === '[DONE]') continue;
-        try {
-          const json = JSON.parse(line);
-          const t = json.choices?.[0]?.delta?.content || '';
-          if (t) { live.textContent += t; full += t; }
-        } catch { /* partial frame */ }
+      const parts = buffer.split('\n\n'); buffer = parts.pop() || '';
+      for(const p of parts){
+        if(!p || p.startsWith(':')) continue;
+        const line = p.replace(/^data:\s*/,''); if(!line || line === '[DONE]') continue;
+        try{
+          const j = JSON.parse(line); const t = j.choices?.[0]?.delta?.content || '';
+          if (t){ live.textContent += t; full += t; }
+        }catch{}
       }
-      const chat = id('chat'); chat.scrollTop = chat.scrollHeight;
+      const c = document.getElementById('chat'); c.scrollTop = c.scrollHeight;
     }
-    id('status').textContent = '';
-    id('send').removeAttribute('disabled');
-
-    // keep the latest assistant text as Markdown for Plan view
+    setStatus(''); disableSend(false);
     lastAssistantMarkdown = full;
-    // auto-render plan if user switches tabs
-    // (or render immediately if you prefer: renderPlanCards(full))
-
-  } catch (err) {
-    showError('Network error. Check Worker URL and try again.');
-    id('status').textContent = '';
-    id('send').removeAttribute('disabled');
+    renderPlanCards(full); // auto-refresh plan on desktop
+  }catch(e){
+    showError('Network error.'); setStatus(''); disableSend(false);
   }
 }
 
-// --- Plan cards rendering ---
-function renderPlanCards(markdown){
-  const grid = document.getElementById('planGrid');
-  grid.innerHTML = '';
-  if (!markdown || !markdown.trim()) {
-    grid.innerHTML = '<div class="muted">No plan yet. Ask for a plan in Chat.</div>';
-    return;
-  }
+function setStatus(t){ document.getElementById('chatStatus').textContent = t || ''; }
+function disableSend(dis){ const b = document.getElementById('sendBtn'); if(dis) b.setAttribute('disabled','true'); else b.removeAttribute('disabled'); }
 
-  // Light parser: split by "Day X" headings (## Day 1, Day 1:, etc.)
+/* ---------- Plan rendering ---------- */
+function renderPlanCards(markdown){
+  const grid = document.getElementById('planGrid'); grid.innerHTML = '';
+  if(!markdown || !markdown.trim()){ grid.innerHTML = '<div class="sub">No plan yet. Ask for a plan in Chat.</div>'; return; }
+
+  // Split by Day headings
   const dayBlocks = markdown
-    .split(/\n(?=#+\s*Day\s*\d+|(?=Day\s*\d+:))/gi)
+    .split(/\n(?=#+\s*Day\s*\d+|Day\s*\d+:)/gi)
     .filter(b => /day\s*\d+/i.test(b));
 
-  if (dayBlocks.length === 0) {
-    // Fallback: render whole markdown in a single card
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = marked.parse(markdown);
-    grid.appendChild(card);
-    return;
+  if(dayBlocks.length === 0){
+    const card = document.createElement('div'); card.className='card';
+    card.innerHTML = marked.parse(markdown); grid.appendChild(card); return;
   }
 
-  dayBlocks.forEach(block => {
-    const titleMatch = block.match(/^(?:#+\s*)?Day\s*(\d+)[^\n]*|^Day\s*(\d+):/i);
-    const dayNum = titleMatch ? (titleMatch[1] || titleMatch[2]) : '?';
-
-    // Extract subsections
+  dayBlocks.forEach(block=>{
+    const titleMatch = block.match(/^(?:#+\s*)?Day\s*(\d+)/i);
+    const dayNum = titleMatch ? titleMatch[1] : '?';
     const sections = extractSections(block);
 
-    const card = document.createElement('div');
-    card.className = 'card';
+    const card = document.createElement('div'); card.className='card';
     const badges = [];
-    const budgetTag = (trip.prefs?.budget || '').trim();
-    if (budgetTag) badges.push(budgetTag);
+    if (trip.prefs?.budget) badges.push(trip.prefs.budget);
     if (trip.prefs?.food) badges.push(trip.prefs.food);
     if (trip.prefs?.mobility) badges.push(trip.prefs.mobility);
 
@@ -322,52 +394,29 @@ function renderPlanCards(markdown){
       <h3>Day ${dayNum}</h3>
       <div>${badges.map(b=>`<span class="badge">${escapeHtml(b)}</span>`).join(' ')}</div>
       ${['Morning','Afternoon','Evening','Night'].map(name=>{
-        const html = sections[name] ? marked.parse(sections[name].join('\n')) : '<p class="muted">—</p>';
+        const html = sections[name] ? marked.parse(sections[name].join('\n')) : '<p class="sub">—</p>';
         return `<div class="section"><strong>${name}</strong>${html}</div>`;
       }).join('')}
-      <div class="actions">
-        <button class="secondary" data-day="${dayNum}" data-action="regen">Regenerate this day</button>
-        <button class="secondary" data-day="${dayNum}" data-action="earlier">Make this day earlier</button>
-      </div>
     `;
     grid.appendChild(card);
   });
-
-  // Wire action buttons
-  grid.querySelectorAll('button[data-action]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const day = btn.dataset.day;
-      const action = btn.dataset.action;
-      const tweak = action === 'regen'
-        ? `Regenerate Day ${day} with the same vibe; keep top attractions but vary food.`
-        : `Shift Day ${day} earlier by 1 hour and favor walks under 10 minutes.`;
-      id('input').value = tweak;
-      tabChat.click();
-      send();
-    });
-  });
 }
 
-// Pull lines under "Morning/Afternoon/Evening/Night" subheaders
 function extractSections(block){
   const lines = block.split('\n');
   const sections = { Morning:[], Afternoon:[], Evening:[], Night:[] };
-  let current = null;
-  const headerRe = /^(?:#+\s*)?(Morning|Afternoon|Evening|Night)\b[:\-]?\s*$/i;
-
-  for (let raw of lines) {
+  let current = null; const headerRe = /^(?:#+\s*)?(Morning|Afternoon|Evening|Night)\b[:\-]?\s*$/i;
+  for (const raw of lines){
     const m = raw.match(headerRe);
-    if (m) { current = m[1][0].toUpperCase() + m[1].slice(1).toLowerCase(); continue; }
-    if (!current) continue;
-    sections[current].push(raw);
+    if (m){ current = m[1][0].toUpperCase() + m[1].slice(1).toLowerCase(); continue; }
+    if (!current) continue; sections[current].push(raw);
   }
   return sections;
 }
+function escapeHtml(s){ return s.replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
-function escapeHtml(s){ return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-
-// --- Exports ---
-document.getElementById('exportIcs').onclick = () => {
+/* ---------- Exports ---------- */
+function exportIcs(){
   const title = `Wandr Trip — ${trip.destination||''}`;
   const dtStart = (trip.startDate || '').replace(/-/g,'');
   const dtEnd = (trip.endDate || '').replace(/-/g,'');
@@ -382,40 +431,33 @@ document.getElementById('exportIcs').onclick = () => {
     `DESCRIPTION:Generated by Wandr`,
     'END:VEVENT','END:VCALENDAR'
   ].join('\r\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([ics], {type:'text/calendar'}));
-  a.download = 'wandr-trip.ics';
-  a.click(); URL.revokeObjectURL(a.href);
-};
+  download('wandr-trip.ics', ics, 'text/calendar');
+}
 
-document.getElementById('exportPdf').onclick = () => {
-  // Export from current Plan view; build if empty
-  if (!planEl.style.display || planEl.style.display === 'none') {
-    renderPlanCards(lastAssistantMarkdown);
-  }
+function exportPdf(){
+  // Build from rendered plan cards
   const cards = Array.from(document.querySelectorAll('#planGrid .card'));
+  if(cards.length===0){ alert('No itinerary to export yet.'); return; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'pt', format:'letter' });
   const margin = 48; let y = margin;
+  const pageH = 792, pageW = 612, width = pageW - margin*2;
 
   doc.setFont('helvetica','bold'); doc.setFontSize(18);
-  doc.text(`Wandr — ${trip.destination || 'Your Trip'}`, margin, y); y += 20;
+  doc.text(`Wandr — ${trip.destination || 'Your Trip'}`, margin, y); y+=20;
   doc.setFont('helvetica','normal'); doc.setFontSize(11);
-  doc.text(`${trip.startDate || ''} → ${trip.endDate || ''}  |  ${trip.startTime || '09:00'}–${trip.endTime || '21:00'}  |  Budget: ${trip.prefs?.budget || '$$'}`, margin, y);
-  y += 18;
+  doc.text(`${trip.startDate || ''} → ${trip.endDate || ''}  |  ${trip.startTime || '09:00'}–${trip.endTime || '21:00'}  |  Budget: ${trip.prefs?.budget || '$$'}`, margin, y); y+=18;
 
-  const pageH = 792, pageW = 612, width = pageW - margin*2;
-  cards.forEach((c, idx) => {
+  cards.forEach((c, idx)=>{
     const title = c.querySelector('h3')?.textContent || `Day ${idx+1}`;
-    const sections = c.querySelectorAll('.section');
-    const parts = [title];
-    sections.forEach(s=>{
-      const label = s.querySelector('strong')?.textContent || '';
-      const text = s.innerText.replace(label,'').trim();
+    const blocks = c.querySelectorAll('.section');
+    const parts=[title];
+    blocks.forEach(b=>{
+      const label=b.querySelector('strong')?.textContent||'';
+      const text=b.innerText.replace(label,'').trim();
       parts.push(`\n${label}\n${text}`);
     });
-    const block = parts.join('\n\n');
-    const lines = doc.splitTextToSize(block, width);
+    const lines = doc.splitTextToSize(parts.join('\n\n'), width);
     const h = lines.length * 14 + 10;
     if (y + h > pageH - margin) { doc.addPage(); y = margin; }
     doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.text(title, margin, y); y += 16;
@@ -424,7 +466,21 @@ document.getElementById('exportPdf').onclick = () => {
   });
 
   doc.save(`Wandr_${(trip.destination||'trip').replace(/\s+/g,'_')}.pdf`);
-};
+}
+
+function download(name, data, type){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([data], {type})); a.download=name; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ---------- On load ---------- */
+(function init(){
+  // If we already had a trip saved, prefill landing input
+  if (trip?.destination){
+    document.getElementById('landingDestination').value = trip.destination;
+  }
+})();
 </script>
 </body>
 </html>
