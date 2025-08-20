@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Wandr — Plan your trip</title>
-  <link rel="icon" href="data:,"><!-- avoid favicon 404 -->
+  <link rel="icon" href="data:,">
   <style>
     *{box-sizing:border-box} :root{--brand:#0ea5e9}
     body{margin:0;background:#0b0b0c;color:#e5e7eb;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto}
@@ -47,12 +47,15 @@
       <h1 style="font-weight:800;margin:.5rem 0 0">Where's your next adventure?</h1>
       <p style="opacity:.85;margin:.25rem 0 1rem">Start typing a city and pick a result (or just type and hit Start).</p>
 
-      <form id="landingForm" style="display:grid;gap:.6rem;margin-top:.25rem" novalidate>
+      <!-- Inline onsubmit/onclick fallbacks ensure this always fires -->
+      <form id="landingForm" style="display:grid;gap:.6rem;margin-top:.25rem" novalidate
+            onsubmit="event.preventDefault(); window.startPlanning();">
         <div class="ta-wrap">
           <input id="destination" class="input" placeholder="e.g., Tokyo, Japan" aria-label="Destination" autocomplete="off" />
           <div id="taList" class="ta-list hide" role="listbox" aria-label="City suggestions"></div>
         </div>
-        <button id="startBtn" class="btn btn-primary" type="submit">Start Planning →</button>
+        <button id="startBtn" class="btn btn-primary" type="submit"
+                onclick="event.preventDefault(); window.startPlanning();">Start Planning →</button>
         <div id="err" class="meta" style="color:#fca5a5;display:none"></div>
       </form>
 
@@ -99,18 +102,18 @@
   </main>
 
   <script>
-    /* ========== CONFIG ========== */
+    /* CONFIG */
     const BACKEND = "https://wandr-worker.wasim1113.workers.dev/api/agent";
-    window.BACKEND = BACKEND; // for console tests
+    window.BACKEND = BACKEND;
     const $ = (id) => document.getElementById(id);
 
-    /* ========== STATE ========== */
+    /* STATE */
     let messages = [], memory = {}, itinerary = null, busy = false;
 
-    /* ========== DOM (late-bound) ========== */
+    /* DOM (late-bound) */
     let landing, chat, destInput, destLabel, taList, msgs, draft, sendBtn, chatBody, pdfBtn, err, startBtn;
 
-    /* ========== UI HELPERS ========== */
+    /* UI helpers */
     function appendMsg(role, content) {
       const wrap = document.createElement("div");
       wrap.style.display = "flex";
@@ -146,7 +149,7 @@
       setTimeout(() => (err.style.display = "none"), 4500);
     }
 
-    /* ========== BACKEND ========== */
+    /* Backend */
     async function agentCall(payload) {
       const res = await fetch(BACKEND, {
         method: "POST",
@@ -157,7 +160,7 @@
       return res.json();
     }
 
-    /* ========== CHAT FLOW ========== */
+    /* Chat flow */
     async function boot(destination) {
       setBusy(true);
       try {
@@ -212,18 +215,16 @@
           doc.setFontSize(13); addLine(`Day ${i+1}${day.title? " — " + day.title : ""}`, 10);
           doc.setFontSize(11);
           if (Array.isArray(day.blocks)) day.blocks.forEach(b => addLine(`• ${b.time ? "["+b.time+"] " : ""}${b.name}${b.notes? " — " + b.notes : ""}`));
-          if (day.tips) addLine(`Tips: ${day.tips}`);
-          addLine("", 14);
+          if (day.tips) addLine(`Tips: ${day.tips}`); addLine("", 14);
         });
       }
       if (Array.isArray(itinerary.tips)) { doc.setFontSize(13); addLine("General Tips", 10); doc.setFontSize(11); itinerary.tips.forEach(t => addLine("• " + t)); }
       doc.save(`wandr-itinerary-${Date.now()}.pdf`);
     }
 
-    /* ========== TYPEAHEAD w/ Fallback ========== */
+    /* Typeahead with fallback */
     let taIdx = -1, taData = [], taTimer;
     function clearTA(){ taList.innerHTML=""; taList.classList.add("hide"); taIdx=-1; taData=[]; }
-
     async function fetchTeleport(q){
       const url = `https://api.teleport.org/api/cities/?search=${encodeURIComponent(q)}&limit=8`;
       const r = await fetch(url, { headers: { "Accept":"application/json" }});
@@ -260,7 +261,7 @@
     }
     function selectTA(i){ const sel=taData[i]; if(!sel) return; destInput.value=sel; clearTA(); }
 
-    /* ========== INIT / BIND (robust) ========== */
+    /* INIT / BIND */
     function startPlanning(){
       const dest = destInput.value.trim();
       console.log("startPlanning() fired with:", dest);
@@ -273,19 +274,17 @@
       if(!msgs) msgs=$("msgs"); if(!chatBody) chatBody=$("chatBody");
       boot(dest);
     }
+    window.startPlanning = startPlanning; // expose globally so inline handlers & console can call it
 
     function init(){
       landing=$("landing"); chat=$("chat"); destInput=$("destination"); destLabel=$("destLabel");
       taList=$("taList"); msgs=$("msgs"); draft=$("draft"); sendBtn=$("sendBtn");
       chatBody=$("chatBody"); pdfBtn=$("pdfBtn"); err=$("err"); startBtn=$("startBtn");
 
-      console.log("Wandr init v0819.4 — handlers bound");
+      console.log("Wandr init v0819.5 — handlers bound");
 
       const form=$("landingForm");
-      if (form){
-        // Use capture so we win even if someone stops propagation later.
-        form.addEventListener("submit",(e)=>{ e.preventDefault(); startPlanning(); }, {capture:true});
-      }
+      if (form) form.addEventListener("submit",(e)=>{ e.preventDefault(); startPlanning(); }, {capture:true});
       if (startBtn){
         startBtn.addEventListener("click",(e)=>{ e.preventDefault(); startPlanning(); }, {capture:true});
         startBtn.addEventListener("keyup",(e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); startPlanning(); }}, {capture:true});
