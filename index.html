@@ -1,440 +1,264 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>Wandr — AI Travel Copilot</title>
-
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-
-<style>
-  :root{
-    --indigo:#4f46e5; --indigo-50:#eef2ff; --indigo-200:#c7d2fe;
-    --ink:#111827; --muted:#6b7280; --line:#e5e7eb; --bg:#f9fafb; --card:#ffffff;
-    --radius:14px; --radius-lg:20px; --shadow:0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.06);
-    --pad-xs:8px; --pad-sm:12px; --pad:16px; --pad-lg:20px; --pad-xl:28px;
-    --mw:1200px;
-  }
-  [data-theme="dark"]{
-    --ink:#e5e7eb; --muted:#9ca3af; --line:#30363d; --bg:#0b1220; --card:#0f172a;
-    --indigo-50:#0b1220; --indigo-200:#334155; --shadow:0 0 0 rgba(0,0,0,0);
-  }
-
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{height:100%}
-  body{margin:0;font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;color:var(--ink);background:var(--bg);padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
-  a{color:var(--indigo);text-decoration:none}
-
-  header{padding:var(--pad-xl) var(--pad);text-align:center}
-  main{max-width:var(--mw);margin:0 auto;padding:0 var(--pad) var(--pad-lg)}
-  .hidden{display:none!important}
-  .row{display:flex;gap:10px}
-  .stack{display:grid;gap:10px}
-
-  .btn{appearance:none;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:12px 18px;cursor:pointer;font-weight:600}
-  .btn.primary{background:var(--indigo);color:#fff;border-color:var(--indigo)}
-  .btn.ghost{background:transparent}
-  .toggle{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--ink);cursor:pointer;font-weight:600}
-  input,select,textarea{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;outline:none;background:var(--card);color:var(--ink)}
-  [data-theme="dark"] .btn{background:#111827;color:#e5e7eb;border-color:#374151}
-  [data-theme="dark"] .btn:hover{border-color:#475569}
-  [data-theme="dark"] .btn.primary{background:var(--indigo);color:#fff;border-color:var(--indigo)}
-  [data-theme="dark"] .toggle{color:#e5e7eb;border-color:#374151;background:transparent}
-  [data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{background:#0f172a;color:#e5e7eb;border-color:#374151}
-  [data-theme="dark"] input::placeholder{color:#9ca3af}
-
-  .hero{display:flex;align-items:center;justify-content:center;min-height:calc(100dvh - 180px);text-align:center;background:radial-gradient(1200px 600px at 50% -200px,var(--indigo-50),transparent);padding:var(--pad)}
-  .hero-card{width:100%;max-width:720px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);padding:var(--pad-lg);box-shadow:var(--shadow)}
-  .logo{font-weight:800;font-size:28px;letter-spacing:.4px}
-  .sub{color:var(--muted);margin:6px 0 16px}
-  .search{display:grid;gap:10px}
-
-  .appbar{position:sticky;top:0;z-index:10;background:var(--card);border-bottom:1px solid var(--line);padding:10px 12px;display:flex;gap:8px;align-items:center;justify-content:space-between}
-  .title{font-weight:700}
-  .cluster{display:flex;gap:8px;align-items:center}
-
-  .chips{display:flex;gap:8px;overflow:auto;padding:8px 0}
-  .chip{border:1px solid var(--line);background:var(--card);padding:8px 12px;border-radius:999px;white-space:nowrap;cursor:pointer;font-size:14px}
-  [data-theme="dark"] .chip{background:#0b1220;color:#e5e7eb;border-color:#374151}
-  .chat{border:1px solid var(--line);background:color-mix(in srgb, var(--card) 92%, #fff 8%);border-radius:var(--radius);padding:12px;height:min(60dvh,520px);min-height:40dvh;overflow:auto}
-  [data-theme="dark"] .chat{background:#1f2433;border-color:#374151} /* darker panel in dark mode */
-  .msg{margin:10px 0;white-space:pre-wrap}
-  .msg.user{text-align:right}
-  .composer{display:flex;gap:8px;margin-top:10px;position:sticky;bottom:0;background:linear-gradient(180deg,rgba(0,0,0,0),var(--bg) 40%);padding-top:6px}
-  .composer input{flex:1;padding:14px 16px;border:1px solid var(--line);border-radius:999px;outline:none}
-
-  .error{display:none;border:1px solid #fecaca;background:#fff1f2;color:#991b1b;border-radius:var(--radius);padding:8px 10px;margin:10px 0}
-  [data-theme="dark"] .error{background:#2a0f12;color:#fecaca;border-color:#7f1d1d}
-
-  .toolbar{display:flex;gap:8px;position:sticky;bottom:0;background:linear-gradient(180deg,rgba(249,250,251,0),var(--bg) 30%);padding-top:8px;flex-wrap:wrap}
-  .plan-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
-  .card h3{margin:0 0 6px;font-size:1rem}
-  .badge{display:inline-block;font-size:.72rem;border:1px solid var(--line);padding:2px 8px;border-radius:999px;margin-right:6px;color:var(--ink)}
-  .section{margin:8px 0}.section strong{display:block;margin-bottom:4px}
-
-  .settings-wrap{max-width:720px;margin:0 auto;padding:var(--pad)}
-  .settings-section{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow)}
-  .settings-section h3{margin:0 0 12px}
-
-  .autocomplete{position:relative}
-  .ac-list{position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--line);border-radius:12px;margin-top:6px;box-shadow:var(--shadow);max-height:min(45dvh,320px);overflow:auto;z-index:20}
-  .ac-item{padding:12px;cursor:pointer;display:flex;justify-content:space-between;gap:8px}
-  .ac-item:hover,.ac-item[aria-selected="true"]{background:var(--indigo-50)}
-  .ac-city{font-weight:600}.ac-meta{color:var(--muted);font-size:.9rem;white-space:nowrap}
-
-  .status-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-weight:600;font-size:14px;border:1px solid var(--line);background:var(--card);color:var(--muted);user-select:none;cursor:pointer}
-  .status-chip.ok{color:#059669;border-color:#10b981}
-  .status-chip.bad{color:#b91c1c;border-color:#f87171}
-  .status-dot{width:8px;height:8px;border-radius:50%;background:currentColor}
-
-  /* Layout control:
-     - Single column by default
-     - When body.has-plan AND ≥ 860px, switch to two columns
-  */
-  .split{display:grid;grid-template-columns:1fr;gap:var(--pad);align-items:start}
-  @media (min-width:860px){
-    body.has-plan .split{grid-template-columns:1.1fr .9fr;gap:18px}
-    body.has-plan .chat{height:60dvh}
-    body.has-plan .toolbar{position:static;background:none}
-    body.has-plan .plan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Wandr — Plan your trip</title>
+  <style>
+    *{box-sizing:border-box} :root{--brand:#0ea5e9}
+    body{margin:0;background:#0b0b0c;color:#e5e7eb;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto}
+    a{color:var(--brand);text-decoration:none}
+    .container{max-width:960px;margin:0 auto;padding:1rem}
+    .card{background:#0f1115;border:1px solid #1f2937;border-radius:16px;padding:1.25rem}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;border-radius:9999px;padding:.7rem 1rem;font-weight:600;border:1px solid transparent;cursor:pointer}
+    .btn-primary{background:var(--brand);color:#fff}
+    .btn-outline{background:transparent;border-color:#374151;color:#e5e7eb}
+    .btn-outline:hover{background:#111827}
+    .input{width:100%;border-radius:12px;border:1px solid #374151;padding:.8rem 1rem;font-size:1rem;background:#0b0b0c;color:#e5e7eb}
+    .input:focus{outline:2px solid var(--brand);outline-offset:1px}
+    .badge{display:inline-flex;align-items:center;gap:.4rem;border:1px solid #374151;padding:.25rem .5rem;border-radius:999px;font-size:.8rem}
+    hr.sep{border:0;border-top:1px dashed #374151;margin:.75rem 0}
+    /* Chat */
+    .chatShell{display:flex;flex-direction:column;min-height:100dvh}
+    .chatBody{flex:1;overflow:auto;padding:1rem}
+    .bubble{max-width:72ch;padding:.75rem 1rem;border-radius:18px;line-height:1.45}
+    .user{background:#1d4ed8;color:#eef2ff;border-bottom-right-radius:6px}
+    .assistant{background:#0f172a;color:#e5e7eb;border-bottom-left-radius:6px}
+    .toolbar{position:sticky;bottom:0;background:linear-gradient(to top,rgba(0,0,0,.9),rgba(0,0,0,.75),transparent);padding:.75rem;backdrop-filter:blur(6px)}
+    .inputRow{display:flex;gap:.5rem}.inputRow .grow{flex:1}
+    .meta{font-size:.8rem;color:#9ca3af;margin-top:.25rem}
+    .hide{display:none}
+    @media (max-width: 560px){ .card{border-radius:12px} h1{font-size:1.6rem} }
+  </style>
+  <!-- jsPDF for client-side PDF export -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
 </head>
 <body>
-
-<!-- Landing -->
-<header id="landingHeader">
-  <div class="logo">Wandr</div>
-  <div class="sub">Your AI travel copilot — just tell me where to go.</div>
-  <div class="cluster" style="justify-content:center;margin-top:8px;flex-wrap:wrap">
-    <button id="openSettingsFromLanding" class="btn ghost" type="button">Trip Settings</button>
-    <button id="themeToggleLanding" class="toggle" type="button" aria-pressed="false">🌙 Dark</button>
-    <span id="healthLanding" class="status-chip" title="Click to re-check"><span class="status-dot"></span> Checking…</span>
-  </div>
-</header>
-
-<section id="landing" class="hero">
-  <div class="hero-card" role="region" aria-label="Start planning">
-    <div class="search">
-      <div class="autocomplete">
-        <input id="landingDestination" type="text" placeholder="Where are you going?" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="destSuggest" />
-        <div id="destSuggest" class="ac-list hidden" role="listbox"></div>
-      </div>
-      <div class="row" style="flex-wrap:wrap">
-        <button id="openAdvanced" class="btn" type="button">Advanced options</button>
-        <button id="ctaPlan" class="btn primary" type="button">Plan my trip</button>
+  <!-- Landing -->
+  <main id="landing" class="container" style="display:grid;place-items:center;min-height:100dvh">
+    <div class="card" style="width:100%;max-width:720px">
+      <div class="badge">🧭 Wandr Trip Agent</div>
+      <h1 style="font-weight:800;margin:.5rem 0 0">Where's your next adventure?</h1>
+      <p style="opacity:.85;margin:.25rem 0 1rem">Tell me a destination and we'll plan it together in chat.</p>
+      <form id="landingForm" style="display:flex;gap:.5rem;margin-top:.25rem">
+        <input id="destination" class="input" placeholder="e.g., Tokyo, Kyoto & Osaka" aria-label="Destination" autofocus />
+        <button class="btn btn-primary" type="submit">Start Planning →</button>
+      </form>
+      <hr class="sep" />
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <span class="badge">✨ Seamless chat onboarding</span>
+        <span class="badge">🗺️ Smart itinerary drafts</span>
+        <span class="badge">📄 One-click PDF export</span>
+        <span class="badge">🌙 Dark mode ready</span>
       </div>
     </div>
-  </div>
-</section>
-
-<!-- App -->
-<section id="app" class="hidden">
-  <div class="appbar">
-    <div class="cluster">
-      <button id="backToLanding" class="btn" type="button">←</button>
-      <div class="title" id="appTitle">Trip</div>
-    </div>
-    <div class="cluster" style="flex-wrap:wrap">
-      <button id="goSettings" class="btn" type="button">Trip Settings</button>
-      <button id="themeToggleApp" class="toggle" type="button" aria-pressed="false">🌙 Dark</button>
-      <span id="healthApp" class="status-chip" title="Click to re-check"><span class="status-dot"></span> Checking…</span>
-    </div>
-  </div>
-
-  <main class="split">
-    <!-- Chat -->
-    <section aria-label="Chat builder">
-      <div class="chips" id="chips">
-        <button class="chip" data-msg="Format the itinerary as Markdown with headings (## Day 1, ## Day 2) and Morning/Afternoon/Evening/Night sections, with $/$$/$$$/$$$$ tags.">Format as day cards</button>
-        <button class="chip" data-msg="More food, fewer museums.">More food, less museums</button>
-        <button class="chip" data-msg="Shorter walking distances.">Shorter walks</button>
-        <button class="chip" data-msg="Luxury dining only ($$$$).">Luxury only</button>
-      </div>
-
-      <div id="error" class="error"></div>
-      <div id="chat" class="chat" aria-live="polite" aria-label="Chat transcript"></div>
-
-      <div class="composer">
-        <input id="chatInput" placeholder="Tell Wandr what you want (e.g., 3 days, sushi focus, $$)" />
-        <button id="sendBtn" class="btn primary" type="button">Send</button>
-      </div>
-      <small id="chatStatus" class="sub" style="display:block;margin-top:6px;"></small>
-    </section>
-
-    <!-- Plan -->
-    <section aria-label="Itinerary detail">
-      <div class="toolbar">
-        <button id="exportPdf" class="btn primary" type="button">Export PDF</button>
-        <button id="exportIcs" class="btn" type="button">Export .ics</button>
-        <button id="editTrip" class="btn" type="button">Quick Edit</button>
-      </div>
-      <div id="planGrid" class="plan-grid" aria-live="polite"></div>
-    </section>
   </main>
-</section>
 
-<!-- Settings -->
-<section id="settings" class="hidden">
-  <div class="appbar">
-    <div class="cluster">
-      <button id="backFromSettings" class="btn" type="button">←</button>
-      <div class="title">Trip Settings</div>
-    </div>
-    <div class="cluster" style="flex-wrap:wrap">
-      <button id="themeToggleSettings" class="toggle" type="button" aria-pressed="false">🌙 Dark</button>
-      <span id="healthSettings" class="status-chip" title="Click to re-check"><span class="status-dot"></span> Checking…</span>
-    </div>
-  </div>
-
-  <main class="settings-wrap">
-    <div class="settings-section stack">
-      <h3>Basics</h3>
-      <label>Destination
-        <div class="autocomplete">
-          <input id="s_dest" placeholder="e.g., Tokyo, Japan" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="destSuggest2" />
-          <div id="destSuggest2" class="ac-list hidden" role="listbox"></div>
+  <!-- Chat -->
+  <main id="chat" class="chatShell hide">
+    <div class="container" style="padding-top:1rem;padding-bottom:.25rem">
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <span style="font-size:1.25rem">🧭</span>
+          <div>
+            <div style="font-weight:800">Wandr Trip Agent</div>
+            <div id="destLabel" class="meta">Destination: —</div>
+          </div>
         </div>
-      </label>
-      <div class="row" style="flex-wrap:wrap">
-        <label style="flex:1;min-width:230px">Start date <input id="s_startDate" type="date" /></label>
-        <label style="flex:1;min-width:230px">End date <input id="s_endDate" type="date" /></label>
-      </div>
-      <div class="row" style="flex-wrap:wrap">
-        <label style="flex:1;min-width:230px">Day start <input id="s_startTime" type="time" /></label>
-        <label style="flex:1;min-width:230px">Day end <input id="s_endTime" type="time" /></label>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <button id="pdfBtn" class="btn btn-outline hide" type="button">Export PDF</button>
+        </div>
       </div>
     </div>
 
-    <div class="settings-section stack">
-      <h3>Preferences</h3>
-      <label>Food restrictions <input id="s_diet" placeholder="e.g., halal, vegetarian" /></label>
-      <div class="row" style="flex-wrap:wrap">
-        <label style="flex:1;min-width:230px">Mobility <input id="s_mobility" placeholder="e.g., easy walks, wheelchair" /></label>
-        <label style="flex:1;min-width:230px">Walkability
-          <select id="s_walkability"><option></option><option>low</option><option>med</option><option>high</option></select>
-        </label>
+    <div id="chatBody" class="chatBody">
+      <div class="container" id="msgs" style="display:grid;gap:.75rem"></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="container inputRow">
+        <input id="draft" class="input grow" placeholder="Answer here… (e.g., 5 days, mid-range budget)" aria-label="Message"/>
+        <button id="sendBtn" class="btn btn-primary" type="button">Send</button>
       </div>
-      <label>Nightlife
-        <select id="s_nightlife"><option></option><option>low</option><option>med</option><option>high</option></select>
-      </label>
-      <label>Budget
-        <select id="s_budget"><option>$</option><option>$$</option><option>$$$</option><option>$$$$</option></select>
-      </label>
-    </div>
-
-    <div class="settings-section stack">
-      <h3>Privacy</h3>
-      <button id="deleteLocal" class="btn" type="button">Delete local data (trip + session)</button>
-    </div>
-
-    <div class="settings-section row" style="justify-content:flex-end;flex-wrap:wrap">
-      <button id="settingsCancel" class="btn" type="button">Cancel</button>
-      <button id="settingsSave" class="btn primary" type="button">Save</button>
+      <div class="container" style="margin-top:.35rem">
+        <span class="meta">Tip: Paste bullets like “vegan, museums, sunset views” — I’ll parse them.</span>
+      </div>
     </div>
   </main>
-</section>
 
-<!-- Quick Edit Dialog -->
-<dialog id="advancedDlg">
-  <form method="dialog">
-    <h3 style="margin:0 0 8px">Quick Edit</h3>
-    <div class="stack">
-      <label>Start date <input id="startDate" type="date" /></label>
-      <label>End date <input id="endDate" type="date" /></label>
-      <div class="row" style="flex-wrap:wrap">
-        <label style="flex:1;min-width:230px">Day start <input id="startTime" type="time" value="09:00" /></label>
-        <label style="flex:1;min-width:230px">Day end <input id="endTime" type="time" value="21:00" /></label>
-      </div>
-      <label>Food restrictions <input id="diet" placeholder="e.g., halal, vegetarian" /></label>
-      <div class="row" style="flex-wrap:wrap">
-        <label style="flex:1;min-width:230px">Mobility <input id="mobility" placeholder="e.g., easy walks, wheelchair" /></label>
-        <label style="flex:1;min-width:230px">Walkability <select id="walkability"><option></option><option>low</option><option>med</option><option>high</option></select></label>
-      </div>
-      <label>Nightlife <select id="nightlife"><option></option><option>low</option><option>med</option><option>high</option></select></label>
-      <label>Budget <select id="budget"><option>$</option><option>$$</option><option>$$$</option><option>$$$$</option></select></label>
-    </div>
-    <div class="row" style="justify-content:flex-end;margin-top:12px;flex-wrap:wrap">
-      <button class="btn" value="cancel" type="button" id="dlgCancel">Cancel</button>
-      <button class="btn primary" value="default" type="submit">Save</button>
-    </div>
-  </form>
-</dialog>
+  <script>
+    // ====== BACKEND: Your Cloudflare Worker endpoint ======
+    const BACKEND = "https://wandr-worker.wasim1113.workers.dev/api/agent";
 
-<dialog id="blockedDlg">
-  <article>
-    <h3>Heads up</h3>
-    <p>That destination isn’t supported right now for safety/data reasons. Try a different location.</p>
-    <div class="row" style="justify-content:flex-end">
-      <button class="btn primary" onclick="document.getElementById('blockedDlg').close()">OK</button>
-    </div>
-  </article>
-</dialog>
+    // ====== State ======
+    let messages = [];
+    let memory = {};
+    let itinerary = null;
+    let busy = false;
 
-<script>
-const WORKER = 'https://wandr-worker.wasim1113.workers.dev';
-const sessionId = ensureSession();
-let trip = loadTrip();
-let lastAssistantMarkdown = '';
+    // ====== DOM refs ======
+    const $ = (id) => document.getElementById(id);
+    const landing = $("landing");
+    const chat = $("chat");
+    const destInput = $("destination");
+    const destLabel = $("destLabel");
+    const msgs = $("msgs");
+    const draft = $("draft");
+    const sendBtn = $("sendBtn");
+    const chatBody = $("chatBody");
+    const pdfBtn = $("pdfBtn");
 
-const THEME_KEY='wandr_theme';
-initTheme();
-function initTheme(){const saved=localStorage.getItem(THEME_KEY)||'light';document.documentElement.setAttribute('data-theme',saved);syncThemeButtons(saved);}
-function toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')||'light';const next=cur==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',next);localStorage.setItem(THEME_KEY,next);syncThemeButtons(next);}
-function syncThemeButtons(t){const label=t==='dark'?'☀️ Light':'🌙 Dark';document.querySelectorAll('#themeToggleLanding,#themeToggleApp,#themeToggleSettings').forEach(b=>{if(b){b.textContent=label;b.setAttribute('aria-pressed',t==='dark')}});}
-
-const landing=document.getElementById('landing'); const landingHeader=document.getElementById('landingHeader'); const app=document.getElementById('app'); const settings=document.getElementById('settings'); const appTitle=document.getElementById('appTitle');
-
-document.getElementById('openAdvanced').onclick=()=>{fillAdvancedFromTrip();document.getElementById('advancedDlg').showModal();};
-document.getElementById('openSettingsFromLanding').onclick=()=>{openSettings();};
-document.getElementById('dlgCancel').onclick=()=>document.getElementById('advancedDlg').close();
-document.getElementById('advancedDlg').addEventListener('close',()=>{ if(document.getElementById('advancedDlg').returnValue!=='cancel'){ trip=currentTripFromAdvanced(); saveTrip(); }});
-document.getElementById('ctaPlan').onclick=()=>{const dest=document.getElementById('landingDestination').value.trim(); if(!dest){alert('Please enter a destination');return;} trip.destination=dest; saveTrip(); appTitle.textContent=dest; showApp();};
-
-document.getElementById('backToLanding').onclick=()=>{showLanding();};
-document.getElementById('goSettings').onclick=()=>{openSettings();};
-document.getElementById('backFromSettings').onclick=()=>{ if(trip?.destination) showApp(); else showLanding(); };
-
-document.getElementById('themeToggleLanding').onclick=toggleTheme;
-document.getElementById('themeToggleApp').onclick=toggleTheme;
-document.getElementById('themeToggleSettings').onclick=toggleTheme;
-
-document.getElementById('settingsCancel').onclick=()=>{populateSettings(); if(trip?.destination) showApp(); else showLanding();};
-document.getElementById('settingsSave').onclick=()=>{trip=readSettingsIntoTrip(); saveTrip(); appTitle.textContent=trip.destination||'Trip'; if(trip.destination) showApp(); else showLanding();};
-document.getElementById('deleteLocal').onclick=()=>{localStorage.removeItem('wandr_trip'); localStorage.removeItem('wandr_session'); alert('Local trip + session deleted.'); trip={}; showLanding();};
-document.getElementById('editTrip').onclick=()=>{fillAdvancedFromTrip();document.getElementById('advancedDlg').showModal();};
-
-document.getElementById('sendBtn').onclick=send;
-document.getElementById('chatInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();send();} });
-document.getElementById('chips').addEventListener('click',e=>{ const el=e.target.closest('.chip'); if(!el) return; document.getElementById('chatInput').value=el.dataset.msg; send(); });
-
-document.getElementById('exportIcs').onclick=exportIcs;
-document.getElementById('exportPdf').onclick=exportPdf;
-
-function ensureSession(){let s=localStorage.getItem('wandr_session'); if(!s){s=self.crypto?.randomUUID?.()?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(16).slice(2); localStorage.setItem('wandr_session',s);} return s;}
-function loadTrip(){try{return JSON.parse(localStorage.getItem('wandr_trip')||'{}')}catch{return{}}}
-function saveTrip(){localStorage.setItem('wandr_trip',JSON.stringify(trip));}
-
-function fillAdvancedFromTrip(){const t=trip||{}; setVal('startDate',t.startDate||''); setVal('endDate',t.endDate||''); setVal('startTime',t.startTime||'09:00'); setVal('endTime',t.endTime||'21:00'); setVal('diet',t.prefs?.food||''); setVal('mobility',t.prefs?.mobility||''); setVal('walkability',t.prefs?.walkability||''); setVal('nightlife',t.prefs?.nightlife||''); setVal('budget',t.prefs?.budget||'$$');}
-function currentTripFromAdvanced(){return{destination:trip.destination||'',startDate:getVal('startDate'),endDate:getVal('endDate'),startTime:getVal('startTime'),endTime:getVal('endTime'),prefs:{food:getVal('diet'),mobility:getVal('mobility'),walkability:getVal('walkability'),nightlife:getVal('nightlife'),budget:getVal('budget')}}}
-
-function openSettings(){populateSettings();showSettings();}
-function populateSettings(){const t=trip||{}; setVal('s_dest',t.destination||''); setVal('s_startDate',t.startDate||''); setVal('s_endDate',t.endDate||''); setVal('s_startTime',t.startTime||'09:00'); setVal('s_endTime',t.endTime||'21:00'); setVal('s_diet',t.prefs?.food||''); setVal('s_mobility',t.prefs?.mobility||''); setVal('s_walkability',t.prefs?.walkability||''); setVal('s_nightlife',t.prefs?.nightlife||''); setVal('s_budget',t.prefs?.budget||'$$');}
-function readSettingsIntoTrip(){return{destination:getVal('s_dest'),startDate:getVal('s_startDate'),endDate:getVal('s_endDate'),startTime:getVal('s_startTime'),endTime:getVal('s_endTime'),prefs:{food:getVal('s_diet'),mobility:getVal('s_mobility'),walkability:getVal('s_walkability'),nightlife:getVal('s_nightlife'),budget:getVal('s_budget')}}}
-function setVal(id,v){const el=document.getElementById(id); if(el) el.value=v;}
-function getVal(id){const el=document.getElementById(id); return el?el.value:'';}
-function showLanding(){document.body.classList.remove('has-plan');app.classList.add('hidden');settings.classList.add('hidden');landing.classList.remove('hidden');landingHeader.classList.remove('hidden');}
-function showApp(){landing.classList.add('hidden');landingHeader.classList.add('hidden');settings.classList.add('hidden');app.classList.remove('hidden');appTitle.textContent=trip.destination||'Trip'; if(document.getElementById('planGrid').children.length){document.body.classList.add('has-plan');} else {document.body.classList.remove('has-plan');}}
-function showSettings(){app.classList.add('hidden');landing.classList.add('hidden');landingHeader.classList.add('hidden');settings.classList.remove('hidden');}
-
-function append(role,text){const el=document.createElement('div'); el.className='msg '+role; el.textContent=text; document.getElementById('chat').appendChild(el); const c=document.getElementById('chat'); c.scrollTop=c.scrollHeight; return el;}
-function showError(msg){const e=document.getElementById('error'); e.textContent=msg; e.style.display='block'; setTimeout(()=>{e.style.display='none'},5000);}
-function setStatus(t){document.getElementById('chatStatus').textContent=t||'';}
-function disableSend(dis){const b=document.getElementById('sendBtn'); if(dis) b.setAttribute('disabled','true'); else b.removeAttribute('disabled');}
-
-async function send(){
-  const input=document.getElementById('chatInput'); const text=input.value.trim(); if(!text) return;
-  if(!trip.destination){showError('Set a destination first in Trip Settings or on the landing page.');return;}
-  const userMsg=text+"\n\nPlease format as Markdown with headings like '## Day 1', and subsections 'Morning', 'Afternoon', 'Evening', 'Night'. Include $/$$/$$$/$$$$ tags and short tips.";
-  append('user',text); input.value=''; setStatus('Thinking…'); disableSend(true);
-
-  try{
-    const resp=await fetch(`${WORKER}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId, message:userMsg, trip})});
-    if(resp.status===403){document.getElementById('blockedDlg').showModal(); setStatus(''); disableSend(false); return;}
-    if(resp.status===429){showError('Server asked to slow down. Try again soon.'); setStatus(''); disableSend(false); return;}
-    if(!resp.ok){const j=await resp.json().catch(()=>({})); showError('Error: '+(j.error||resp.status)); setStatus(''); disableSend(false); return;}
-
-    const reader=resp.body.getReader(); const decoder=new TextDecoder(); let buffer=''; const live=append('assistant',''); let full='';
-    while(true){
-      const {value,done}=await reader.read(); if(done) break;
-      buffer+=decoder.decode(value,{stream:true});
-      const parts=buffer.split('\n\n'); buffer=parts.pop()||'';
-      for(const p of parts){
-        if(!p||p.startsWith(':')) continue;
-        const line=p.replace(/^data:\s*/,''); if(!line||line==='[DONE]') continue;
-        try{ const j=JSON.parse(line); const t=j.choices?.[0]?.delta?.content||''; if(t){live.textContent+=t; full+=t;} }catch{}
-      }
-      const c=document.getElementById('chat'); c.scrollTop=c.scrollHeight;
+    // ====== UI helpers ======
+    function appendMsg(role, content) {
+      const wrap = document.createElement("div");
+      wrap.style.display = "flex";
+      wrap.style.justifyContent = role === "user" ? "flex-end" : "flex-start";
+      const b = document.createElement("div");
+      b.className = "bubble " + (role === "user" ? "user" : "assistant");
+      b.textContent = content;
+      wrap.appendChild(b);
+      msgs.appendChild(wrap);
+      chatBody.scrollTo({ top: chatBody.scrollHeight, behavior: "smooth" });
     }
-    setStatus(''); disableSend(false); lastAssistantMarkdown=full; renderPlanCards(full);
-  }catch(e){ showError('Network error.'); setStatus(''); disableSend(false); }
-}
 
-function renderPlanCards(markdown){
-  const grid=document.getElementById('planGrid'); grid.innerHTML='';
-  if(!markdown||!markdown.trim()){
-    document.body.classList.remove('has-plan');
-    grid.innerHTML='<div class="sub">No plan yet. Ask for a plan in Chat.</div>';
-    return;
-  }
-  const dayBlocks=markdown.split(/\n(?=#+\s*Day\s*\d+|Day\s*\d+:)/gi).filter(b=>/day\s*\d+/i.test(b));
-  if(dayBlocks.length===0){const card=document.createElement('div'); card.className='card'; card.innerHTML=marked.parse(markdown); grid.appendChild(card); document.body.classList.add('has-plan'); return;}
-  dayBlocks.forEach(block=>{
-    const titleMatch=block.match(/^(?:#+\s*)?Day\s*(\d+)/i); const dayNum=titleMatch?titleMatch[1]:'?';
-    const sections=extractSections(block);
-    const card=document.createElement('div'); card.className='card';
-    const badges=[]; if(trip.prefs?.budget) badges.push(trip.prefs.budget); if(trip.prefs?.food) badges.push(trip.prefs.food); if(trip.prefs?.mobility) badges.push(trip.prefs.mobility);
-    card.innerHTML=`<h3>Day ${dayNum}</h3><div>${badges.map(b=>`<span class="badge">${escapeHtml(b)}</span>`).join(' ')}</div>`+
-      ['Morning','Afternoon','Evening','Night'].map(name=>{const html=sections[name]?marked.parse(sections[name].join('\\n')):'<p class="sub">—</p>'; return `<div class="section"><strong>${name}</strong>${html}</div>`;}).join('');
-    grid.appendChild(card);
-  });
-  document.body.classList.add('has-plan');
-}
-function extractSections(block){
-  const lines=block.split('\n'); const sections={Morning:[],Afternoon:[],Evening:[],Night:[]}; let current=null; const headerRe=/^(?:#+\s*)?(Morning|Afternoon|Evening|Night)\b[:\-]?\s*$/i;
-  for(const raw of lines){const m=raw.match(headerRe); if(m){current=m[1][0].toUpperCase()+m[1].slice(1).toLowerCase(); continue;} if(!current) continue; sections[current].push(raw);} return sections;
-}
-function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+    function setBusy(on) {
+      busy = on;
+      sendBtn.disabled = on;
+      if (on) {
+        const thinking = document.createElement("div");
+        thinking.id = "_thinking";
+        thinking.className = "assistant bubble";
+        thinking.style.opacity = ".75";
+        thinking.textContent = "Thinking…";
+        msgs.appendChild(thinking);
+        chatBody.scrollTo({ top: chatBody.scrollHeight, behavior: "smooth" });
+      } else {
+        const t = document.getElementById("_thinking");
+        if (t) t.remove();
+      }
+    }
 
-function exportIcs(){
-  const title=`Wandr Trip — ${trip.destination||''}`; const dtStart=(trip.startDate||'').replace(/-/g,''), dtEnd=(trip.endDate||'').replace(/-/g,'');
-  const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Wandr//EN','BEGIN:VEVENT',`UID:${sessionId}@wandr`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').split('.')[0]}Z`,`DTSTART;VALUE=DATE:${dtStart}`,`DTEND;VALUE=DATE:${dtEnd}`,`SUMMARY:${title}`,`DESCRIPTION:Generated by Wandr`,'END:VEVENT','END:VCALENDAR'].join('\r\n');
-  download('wandr-trip.ics',ics,'text/calendar');
-}
-function exportPdf(){
-  const cards=[...document.querySelectorAll('#planGrid .card')]; if(!cards.length){alert('No itinerary to export yet.');return;}
-  const {jsPDF}=window.jspdf; const doc=new jsPDF({unit:'pt',format:'letter'}); const margin=48; let y=margin; const pageH=792,pageW=612,width=pageW-margin*2;
-  doc.setFont('helvetica','bold'); doc.setFontSize(18); doc.text(`Wandr — ${trip.destination||'Your Trip'}`,margin,y); y+=20;
-  doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.text(`${trip.startDate||''} → ${trip.endDate||''}  |  ${trip.startTime||'09:00'}–${trip.endTime||'21:00'}  |  Budget: ${trip.prefs?.budget||'$$'}`,margin,y); y+=18;
-  cards.forEach((c,idx)=>{const title=c.querySelector('h3')?.textContent||`Day ${idx+1}`; const blocks=c.querySelectorAll('.section'); const parts=[title];
-    blocks.forEach(b=>{const label=b.querySelector('strong')?.textContent||''; const text=b.innerText.replace(label,'').trim(); parts.push(`\n${label}\n${text}`);});
-    const lines=doc.splitTextToSize(parts.join('\n\n'),width); const h=lines.length*14+10;
-    if(y+h>pageH-margin){doc.addPage(); y=margin;}
-    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.text(title,margin,y); y+=16;
-    doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.text(lines.slice(1),margin,y); y+=h-16;
-    if(idx<cards.length-1){doc.setDrawColor(220); doc.line(margin,y,pageW-margin,y); y+=10;}
-  });
-  doc.save(`Wandr_${(trip.destination||'trip').replace(/\s+/g,'_')}.pdf`);
-}
-function download(name,data,type){const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([data],{type})); a.download=name; a.click(); URL.revokeObjectURL(a.href);}
+    async function agentCall(payload) {
+      const res = await fetch(BACKEND, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Agent error");
+      return res.json();
+    }
 
-const destInput=document.getElementById('landingDestination'), acList=document.getElementById('destSuggest');
-const destInput2=document.getElementById('s_dest'), acList2=document.getElementById('destSuggest2');
-let acOpen=false,acActive=-1,acDebounce; let acOpen2=false,acActive2=-1,acDebounce2;
-const SEARCH_CACHE=new Map();
-function escape(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
-function acOpenList(listEl,inputEl,which='1'){listEl.classList.remove('hidden'); inputEl.setAttribute('aria-expanded','true'); if(which==='1'){acOpen=true;acActive=-1;} else {acOpen2=true;acActive2=-1;}}
-function acCloseList(listEl,inputEl,which='1'){listEl.classList.add('hidden'); inputEl.setAttribute('aria-expanded','false'); if(which==='1'){acOpen=false;acActive=-1;} else {acOpen2=false;acActive2=-1;} inputEl.removeAttribute('aria-activedescendant');}
-function acSetActive(listEl,inputEl,activeIdx){const nodes=[...listEl.querySelectorAll('.ac-item')]; nodes.forEach((n,i)=>n.setAttribute('aria-selected',String(i===activeIdx))); if(activeIdx>=0){const el=listEl.querySelector('#'+listEl.id+'-item-'+activeIdx); if(el) el.scrollIntoView({block:'nearest'}); inputEl.setAttribute('aria-activedescendant',listEl.id+'-item-'+activeIdx);}}
-function acRender(listEl,inputEl,items){listEl.innerHTML=''; if(!items.length){acCloseList(listEl,inputEl,listEl===acList?'1':'2'); return;} items.forEach((c,i)=>{const div=document.createElement('div'); div.className='ac-item'; div.setAttribute('role','option'); div.setAttribute('id',`${listEl.id}-item-${i}`); div.innerHTML=`<span class="ac-city">${escape(c.label)}</span><span class="ac-meta">${escape([c.admin,c.country].filter(Boolean).join(', '))}</span>`; div.addEventListener('mousedown',e=>{e.preventDefault(); pickCity(c,inputEl);}); listEl.appendChild(div);}); acOpenList(listEl,inputEl,listEl===acList?'1':'2');}
-async function searchCities(q){const key=q.trim().toLowerCase(); if(!key) return []; if(SEARCH_CACHE.has(key)) return SEARCH_CACHE.get(key); const url=`${WORKER}/geo?q=${encodeURIComponent(key)}`; try{const r=await fetch(url); if(!r.ok) return []; const j=await r.json(); const list=(j.results||[]); SEARCH_CACHE.set(key,list); if(SEARCH_CACHE.size>200) SEARCH_CACHE.delete(SEARCH_CACHE.keys().next().value); return list;}catch{return[]}}
-async function pickCity(c,inputEl){const full=`${c.label}, ${[c.admin,c.country].filter(Boolean).join(', ')}`.replace(/\s+,/g,','); inputEl.value=full; trip.destination=full; if(typeof c.lat==='number'&&typeof c.lon==='number'){trip.coords={lat:c.lat,lon:c.lon};} saveTrip(); acCloseList(inputEl===destInput?acList:acList2,inputEl,inputEl===destInput?'1':'2');}
-destInput.addEventListener('input',e=>{const q=e.target.value; clearTimeout(acDebounce); acDebounce=setTimeout(async()=>{if(!q.trim()){acCloseList(acList,destInput,'1');return;} acRender(acList,destInput,await searchCities(q));},120);});
-destInput.addEventListener('keydown',e=>{if(!acOpen) return; const nodes=acList.querySelectorAll('.ac-item'); if(e.key==='ArrowDown'){e.preventDefault(); acActive=Math.min(nodes.length-1,acActive+1); acSetActive(acList,destInput,acActive);} else if(e.key==='ArrowUp'){e.preventDefault(); acActive=Math.max(0,acActive-1); acSetActive(acList,destInput,acActive);} else if(e.key==='Enter'){e.preventDefault(); if(acActive>=0&&nodes[acActive]) nodes[acActive].dispatchEvent(new Event('mousedown')); else acCloseList(acList,destInput,'1');} else if(e.key==='Escape'){acCloseList(acList,destInput,'1');}});
-destInput2.addEventListener('input',e=>{const q=e.target.value; clearTimeout(acDebounce2); acDebounce2=setTimeout(async()=>{if(!q.trim()){acCloseList(acList2,destInput2,'2');return;} acRender(acList2,destInput2,await searchCities(q));},120);});
-destInput2.addEventListener('keydown',e=>{if(!acOpen2) return; const nodes=acList2.querySelectorAll('.ac-item'); if(e.key==='ArrowDown'){e.preventDefault(); acActive2=Math.min(nodes.length-1,acActive2+1); acSetActive(acList2,destInput2,acActive2);} else if(e.key==='ArrowUp'){e.preventDefault(); acActive2=Math.max(0,acActive2-1); acSetActive(acList2,destInput2,acActive2);} else if(e.key==='Enter'){e.preventDefault(); if(acActive2>=0&&nodes[acActive2]) nodes[acActive2].dispatchEvent(new Event('mousedown')); else acCloseList(acList2,destInput2,'2');} else if(e.key==='Escape'){acCloseList(acList2,destInput2,'2');}});
-document.addEventListener('click',e=>{if(acOpen && !e.target.closest('.autocomplete')) acCloseList(acList,destInput,'1'); if(acOpen2 && !e.target.closest('.autocomplete')) acCloseList(acList2,destInput2,'2');});
+    async function boot(destination) {
+      setBusy(true);
+      try {
+        const data = await agentCall({
+          messages: [],
+          memory: { destination },
+          mode: "boot",
+        });
+        memory = data.memory || { destination };
+        destLabel.textContent = "Destination: " + (memory.destination || "—");
+        const first = data.assistant_message || "Hi! How many days will you be staying?";
+        appendMsg("assistant", first);
+        messages.push({ role: "assistant", content: first });
+        if (data.itinerary) {
+          itinerary = data.itinerary;
+          pdfBtn.classList.remove("hide");
+        }
+      } catch (e) {
+        appendMsg("assistant", "Sorry — I hit an error starting the chat. Please try again.");
+      } finally {
+        setBusy(false);
+      }
+    }
 
-const HEALTH_IDS=['healthLanding','healthApp','healthSettings'];
-const HEALTH_ELS=HEALTH_IDS.map(id=>document.getElementById(id)).filter(Boolean);
-function setHealth(el,state){ if(!el) return; el.classList.remove('ok','bad'); if(state==='ok'){el.classList.add('ok'); el.lastChild.textContent=' Connected';} else if(state==='bad'){el.classList.add('bad'); el.lastChild.textContent=' Offline';} else {el.lastChild.textContent=' Checking…';}}
-async function checkHealth(){HEALTH_ELS.forEach(el=>setHealth(el,'checking')); const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),4000); try{const r=await fetch(`${WORKER}/healthz`,{signal:ctrl.signal,cache:'no-store'}); clearTimeout(t); HEALTH_ELS.forEach(el=>setHealth(el,r.ok?'ok':'bad')); }catch{clearTimeout(t); HEALTH_ELS.forEach(el=>setHealth(el,'bad'));}}
-HEALTH_ELS.forEach(el=>el?.addEventListener('click',checkHealth));
-checkHealth(); setInterval(checkHealth,30000); document.addEventListener('visibilitychange',()=>{ if(!document.hidden) checkHealth(); });
+    async function sendUser(text) {
+      if (!text.trim() || busy) return;
+      const userMsg = { role: "user", content: text.trim() };
+      messages.push(userMsg);
+      appendMsg("user", userMsg.content);
+      draft.value = "";
+      setBusy(true);
+      try {
+        const data = await agentCall({
+          messages,
+          memory,
+          mode: itinerary ? "modify" : "ask",
+          itinerary,
+        });
+        memory = data.memory || memory;
+        if (data.itinerary) {
+          itinerary = data.itinerary;
+          pdfBtn.classList.remove("hide");
+        }
+        const reply = data.assistant_message || "Okay!";
+        messages.push({ role: "assistant", content: reply });
+        appendMsg("assistant", reply);
+      } catch (e) {
+        appendMsg("assistant", "Sorry — I hit an error. Try again in a moment.");
+      } finally {
+        setBusy(false);
+      }
+    }
 
-(function(){ if(trip?.destination){document.getElementById('landingDestination').value=trip.destination; document.getElementById('s_dest').value=trip.destination;} })();
-</script>
+    async function exportPDF() {
+      if (!itinerary) return;
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: "pt" });
+      const L = 56; let y = 64; const W = 528;
+
+      doc.setFontSize(18); doc.text(`Wandr Itinerary — ${(memory.destination||"Trip")}`, L, y); y += 18;
+      doc.setFontSize(11); doc.text(new Date().toLocaleString(), L, y); y += 24;
+
+      function addLine(txt, gap=16) {
+        const lines = doc.splitTextToSize(txt, W);
+        lines.forEach(line => { doc.text(line, L, y); y += 14; });
+        y += (gap - 14);
+        if (y > 760) { doc.addPage(); y = 64; }
+      }
+
+      if (itinerary.summary) { doc.setFontSize(13); addLine(itinerary.summary, 22); doc.setFontSize(11); }
+
+      if (Array.isArray(itinerary.days)) {
+        itinerary.days.forEach((day, i) => {
+          doc.setFontSize(13); addLine(`Day ${i+1}${day.title? " — " + day.title : ""}`, 10);
+          doc.setFontSize(11);
+          if (Array.isArray(day.blocks)) {
+            day.blocks.forEach(b => addLine(`• ${b.time ? "["+b.time+"] " : ""}${b.name}${b.notes? " — " + b.notes : ""}`));
+          }
+          if (day.tips) addLine(`Tips: ${day.tips}`);
+          addLine("", 14);
+        });
+      }
+
+      if (Array.isArray(itinerary.tips)) {
+        doc.setFontSize(13); addLine("General Tips", 10); doc.setFontSize(11);
+        itinerary.tips.forEach(t => addLine("• " + t));
+      }
+
+      doc.save(`wandr-itinerary-${Date.now()}.pdf`);
+    }
+
+    // ====== Events ======
+    document.addEventListener("DOMContentLoaded", () => {
+      $("landingForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const dest = destInput.value.trim();
+        if (!dest) return;
+        landing.classList.add("hide");
+        chat.classList.remove("hide");
+        memory = { destination: dest };
+        destLabel.textContent = "Destination: " + dest;
+        boot(dest);
+      });
+
+      sendBtn.addEventListener("click", () => sendUser(draft.value));
+      draft.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendUser(draft.value); }
+      });
+
+      pdfBtn.addEventListener("click", exportPDF);
+    });
+  </script>
 </body>
 </html>
