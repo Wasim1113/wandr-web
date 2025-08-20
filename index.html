@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Wandr — Plan your trip</title>
-  <link rel="icon" href="data:,">
+  <link rel="icon" href="data:,"><!-- avoid favicon 404 -->
   <style>
     *{box-sizing:border-box} :root{--brand:#0ea5e9}
     body{margin:0;background:#0b0b0c;color:#e5e7eb;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto}
@@ -47,7 +47,7 @@
       <h1 style="font-weight:800;margin:.5rem 0 0">Where's your next adventure?</h1>
       <p style="opacity:.85;margin:.25rem 0 1rem">Start typing a city and pick a result (or just type and hit Start).</p>
 
-      <!-- Inline onsubmit/onclick fallbacks ensure this always fires -->
+      <!-- Inline handlers ensure this always fires -->
       <form id="landingForm" style="display:grid;gap:.6rem;margin-top:.25rem" novalidate
             onsubmit="event.preventDefault(); window.startPlanning();">
         <div class="ta-wrap">
@@ -102,18 +102,18 @@
   </main>
 
   <script>
-    /* CONFIG */
+    /* ===== Config ===== */
     const BACKEND = "https://wandr-worker.wasim1113.workers.dev/api/agent";
-    window.BACKEND = BACKEND;
+    window.BACKEND = BACKEND; // console testing
     const $ = (id) => document.getElementById(id);
 
-    /* STATE */
+    /* ===== State ===== */
     let messages = [], memory = {}, itinerary = null, busy = false;
 
-    /* DOM (late-bound) */
+    /* ===== DOM (late-bound) ===== */
     let landing, chat, destInput, destLabel, taList, msgs, draft, sendBtn, chatBody, pdfBtn, err, startBtn;
 
-    /* UI helpers */
+    /* ===== UI helpers ===== */
     function appendMsg(role, content) {
       const wrap = document.createElement("div");
       wrap.style.display = "flex";
@@ -149,7 +149,7 @@
       setTimeout(() => (err.style.display = "none"), 4500);
     }
 
-    /* Backend */
+    /* ===== Backend ===== */
     async function agentCall(payload) {
       const res = await fetch(BACKEND, {
         method: "POST",
@@ -160,7 +160,7 @@
       return res.json();
     }
 
-    /* Chat flow */
+    /* ===== Chat flow ===== */
     async function boot(destination) {
       setBusy(true);
       try {
@@ -222,31 +222,47 @@
       doc.save(`wandr-itinerary-${Date.now()}.pdf`);
     }
 
-    /* Typeahead with fallback */
+    /* ===== Typeahead: Nominatim + local fallback ===== */
+    // Lightweight local list as ultimate fallback
+    const CITY_SEED = [
+      "Tokyo, Japan","Osaka, Japan","Kyoto, Japan","Seoul, South Korea","Taipei, Taiwan",
+      "Singapore, Singapore","Hong Kong, China","Bangkok, Thailand","Phuket, Thailand","Bali, Indonesia",
+      "Sydney, Australia","Melbourne, Australia","Auckland, New Zealand",
+      "San Francisco, United States","Los Angeles, United States","New York, United States","Chicago, United States","Miami, United States",
+      "Vancouver, Canada","Toronto, Canada","Montreal, Canada","Mexico City, Mexico","Cancún, Mexico",
+      "London, United Kingdom","Edinburgh, United Kingdom","Dublin, Ireland","Paris, France","Nice, France",
+      "Barcelona, Spain","Madrid, Spain","Rome, Italy","Florence, Italy","Venice, Italy","Milan, Italy",
+      "Berlin, Germany","Munich, Germany","Amsterdam, Netherlands","Copenhagen, Denmark","Stockholm, Sweden","Oslo, Norway","Helsinki, Finland",
+      "Lisbon, Portugal","Zurich, Switzerland","Geneva, Switzerland","Vienna, Austria","Prague, Czechia","Budapest, Hungary",
+      "Athens, Greece","Istanbul, Türkiye","Dubai, United Arab Emirates","Marrakesh, Morocco","Cairo, Egypt",
+      "Cape Town, South Africa","Rio de Janeiro, Brazil","São Paulo, Brazil","Buenos Aires, Argentina","Santiago, Chile","Lima, Peru","Delhi, India","Jaipur, India","Goa, India"
+    ];
+
     let taIdx = -1, taData = [], taTimer;
     function clearTA(){ taList.innerHTML=""; taList.classList.add("hide"); taIdx=-1; taData=[]; }
-    async function fetchTeleport(q){
-      const url = `https://api.teleport.org/api/cities/?search=${encodeURIComponent(q)}&limit=8`;
-      const r = await fetch(url, { headers: { "Accept":"application/json" }});
-      if (!r.ok) throw new Error("Teleport HTTP "+r.status);
-      const j = await r.json();
-      const items = (j._embedded && j._embedded["city:search-results"]) || [];
-      return items.map(x => x.matching_full_name).filter(Boolean);
+
+    function formatNom(result){
+      const a = result.address || {};
+      const city = a.city || a.town || a.village || a.municipality || a.county || result.display_name?.split(",")[0] || "";
+      const country = a.country || "";
+      return (city && country) ? `${city}, ${country}` : (result.display_name || "").split(",").slice(0,3).join(", ");
     }
+
     async function fetchNominatim(q){
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=8&addressdetails=1`;
-      const r = await fetch(url, { headers: { "Accept":"application/json" }});
-      if (!r.ok) throw new Error("Nominatim HTTP "+r.status);
-      const arr = await r.json();
-      return arr.map(o => o.display_name);
-    }
-    async function fetchCities(q){
-      try{ return await fetchTeleport(q); }
-      catch(e1){ console.warn("Teleport failed, using Nominatim:", e1?.message||e1);
-        try{ return await fetchNominatim(q); }
-        catch(e2){ console.error("Typeahead fallback failed:", e2?.message||e2); return []; }
+      try{
+        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&limit=8&addressdetails=1`;
+        const r = await fetch(url, { headers: { "Accept":"application/json" }});
+        if (!r.ok) throw new Error("HTTP "+r.status);
+        const arr = await r.json();
+        const names = Array.from(new Set(arr.map(formatNom).filter(Boolean)));
+        return names;
+      }catch(e){
+        console.warn("Nominatim failed, falling back to local list:", e?.message || e);
+        const ql = q.toLowerCase();
+        return CITY_SEED.filter(n => n.toLowerCase().includes(ql)).slice(0,8);
       }
     }
+
     function renderTA(items){
       taList.innerHTML="";
       if (!items.length){ taList.innerHTML=`<div class="ta-empty">No matches</div>`; taList.classList.remove("hide"); return; }
@@ -261,34 +277,37 @@
     }
     function selectTA(i){ const sel=taData[i]; if(!sel) return; destInput.value=sel; clearTA(); }
 
-    /* INIT / BIND */
-    function startPlanning(){
-      const dest = destInput.value.trim();
-      console.log("startPlanning() fired with:", dest);
-      if(!dest){ showError("Please choose a destination"); destInput.focus(); return; }
-      clearTA();
-      landing.classList.add("hide");
-      chat.classList.remove("hide");
-      memory={ destination: dest };
-      destLabel.textContent="Destination: "+dest;
-      if(!msgs) msgs=$("msgs"); if(!chatBody) chatBody=$("chatBody");
-      boot(dest);
+    /* ===== Init / Bind ===== */
+    function startPlanningOnce(){
+      let started = false;
+      return function(){
+        if (started) return;
+        started = true;
+        const dest = destInput.value.trim();
+        console.log("startPlanning() RUNNING ONCE with:", dest);
+        if (!dest){ showError("Please choose a destination"); started = false; return; }
+        clearTA();
+        landing.classList.add("hide");
+        chat.classList.remove("hide");
+        memory={ destination: dest };
+        destLabel.textContent="Destination: "+dest;
+        if(!msgs) msgs=$("msgs"); if(!chatBody) chatBody=$("chatBody");
+        boot(dest);
+      };
     }
-    window.startPlanning = startPlanning; // expose globally so inline handlers & console can call it
+    window.startPlanning = startPlanningOnce(); // exposed for inline handlers & console
 
     function init(){
       landing=$("landing"); chat=$("chat"); destInput=$("destination"); destLabel=$("destLabel");
       taList=$("taList"); msgs=$("msgs"); draft=$("draft"); sendBtn=$("sendBtn");
       chatBody=$("chatBody"); pdfBtn=$("pdfBtn"); err=$("err"); startBtn=$("startBtn");
 
-      console.log("Wandr init v0819.5 — handlers bound");
+      console.log("Wandr init v0820.1 — handlers bound");
 
+      // Programmatic bindings (inline handlers already call startPlanning)
       const form=$("landingForm");
-      if (form) form.addEventListener("submit",(e)=>{ e.preventDefault(); startPlanning(); }, {capture:true});
-      if (startBtn){
-        startBtn.addEventListener("click",(e)=>{ e.preventDefault(); startPlanning(); }, {capture:true});
-        startBtn.addEventListener("keyup",(e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); startPlanning(); }}, {capture:true});
-      }
+      form && form.addEventListener("submit",(e)=>{ e.preventDefault(); window.startPlanning(); }, {capture:true});
+      startBtn && startBtn.addEventListener("click",(e)=>{ e.preventDefault(); window.startPlanning(); }, {capture:true});
 
       if (sendBtn) sendBtn.addEventListener("click",()=>sendUser(draft.value));
       if (draft) draft.addEventListener("keydown",(e)=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendUser(draft.value); }});
@@ -300,8 +319,8 @@
           clearTimeout(taTimer);
           if(q.length<2){ clearTA(); return; }
           taTimer=setTimeout(async ()=>{
-            const list=await fetchCities(q);
-            taData=list; taIdx=-1; renderTA(list);
+            taData = await fetchNominatim(q);
+            taIdx=-1; renderTA(taData);
           },220);
         });
         destInput.addEventListener("keydown",(e)=>{
