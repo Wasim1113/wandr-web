@@ -98,32 +98,24 @@
   </main>
 
   <script>
-    // ====== Backend (your Worker) ======
+    /* ========================
+       CONFIG + GLOBAL STATE
+       ======================== */
     const BACKEND = "https://wandr-worker.wasim1113.workers.dev/api/agent";
-    window.BACKEND = BACKEND; // exposed for console testing
+    window.BACKEND = BACKEND; // for console tests
+    const $ = (id) => document.getElementById(id);
 
-    // ====== State ======
     let messages = [];
     let memory = {};
     let itinerary = null;
     let busy = false;
 
-    // ====== DOM ======
-    const $ = (id) => document.getElementById(id);
-    const landing = $("landing");
-    const chat = $("chat");
-    const destInput = $("destination");
-    const destLabel = $("destLabel");
-    const taList = $("taList");
-    const msgs = $("msgs");
-    const draft = $("draft");
-    const sendBtn = $("sendBtn");
-    const chatBody = $("chatBody");
-    const pdfBtn = $("pdfBtn");
-    const err = $("err");
-    const startBtn = $("startBtn");
+    // DOM refs
+    let landing, chat, destInput, destLabel, taList, msgs, draft, sendBtn, chatBody, pdfBtn, err, startBtn;
 
-    // ====== UI helpers ======
+    /* ========================
+       UI HELPERS
+       ======================== */
     function appendMsg(role, content) {
       const wrap = document.createElement("div");
       wrap.style.display = "flex";
@@ -138,8 +130,8 @@
 
     function setBusy(on) {
       busy = on;
-      sendBtn.disabled = on;
-      startBtn.disabled = on;
+      if (sendBtn) sendBtn.disabled = on;
+      if (startBtn) startBtn.disabled = on;
       if (on) {
         const thinking = document.createElement("div");
         thinking.id = "_thinking";
@@ -155,12 +147,15 @@
     }
 
     function showError(text) {
+      if (!err) return;
       err.textContent = text;
       err.style.display = "block";
       setTimeout(() => (err.style.display = "none"), 4500);
     }
 
-    // ====== Backend call ======
+    /* ========================
+       BACKEND CALL
+       ======================== */
     async function agentCall(payload) {
       const res = await fetch(BACKEND, {
         method: "POST",
@@ -171,7 +166,9 @@
       return res.json();
     }
 
-    // ====== Boot chat ======
+    /* ========================
+       CHAT FLOW
+       ======================== */
     async function boot(destination) {
       setBusy(true);
       try {
@@ -188,7 +185,6 @@
       } finally { setBusy(false); }
     }
 
-    // ====== Send user message ======
     async function sendUser(text) {
       if (!text.trim() || busy) return;
       const userMsg = { role: "user", content: text.trim() };
@@ -209,7 +205,6 @@
       } finally { setBusy(false); }
     }
 
-    // ====== PDF Export ======
     async function exportPDF() {
       if (!itinerary) return;
       const { jsPDF } = window.jspdf;
@@ -242,20 +237,21 @@
       doc.save(`wandr-itinerary-${Date.now()}.pdf`);
     }
 
-    // ====== Typeahead (Teleport API, no key needed) ======
-    let taIdx = -1; // keyboard selection index
-    let taData = [];
-    let taTimer;
-
+    /* ========================
+       TYPEAHEAD (Teleport)
+       ======================== */
+    let taIdx = -1, taData = [], taTimer;
     function clearTA(){ taList.innerHTML = ""; taList.classList.add("hide"); taIdx = -1; taData = []; }
 
     async function fetchCities(q){
-      const url = `https://api.teleport.org/api/cities/?search=${encodeURIComponent(q)}&limit=8`;
-      const r = await fetch(url);
-      if (!r.ok) return [];
-      const j = await r.json();
-      const items = (j._embedded && j._embedded["city:search-results"]) || [];
-      return items.map(x => x.matching_full_name).filter(Boolean);
+      try{
+        const url = `https://api.teleport.org/api/cities/?search=${encodeURIComponent(q)}&limit=8`;
+        const r = await fetch(url);
+        if (!r.ok) return [];
+        const j = await r.json();
+        const items = (j._embedded && j._embedded["city:search-results"]) || [];
+        return items.map(x => x.matching_full_name).filter(Boolean);
+      }catch(e){ console.error("Typeahead error:", e); return []; }
     }
 
     function renderTA(items){
@@ -279,34 +275,23 @@
       clearTA();
     }
 
-    destInput.addEventListener("input", () => {
-      const q = destInput.value.trim();
-      clearTimeout(taTimer);
-      if (q.length < 2){ clearTA(); return; }
-      taTimer = setTimeout(async () => {
-        try{
-          taData = await fetchCities(q);
-          renderTA(taData);
-        } catch(e){ console.error(e); }
-      }, 220);
-    });
+    /* ========================
+       INIT / EVENT BINDING
+       Robust: bind immediately if DOM is ready,
+       otherwise wait for DOMContentLoaded.
+       ======================== */
+    function init(){
+      // cache DOM
+      landing = $("landing"); chat = $("chat"); destInput = $("destination"); destLabel = $("destLabel");
+      taList = $("taList"); msgs = $("msgs"); draft = $("draft"); sendBtn = $("sendBtn");
+      chatBody = $("chatBody"); pdfBtn = $("pdfBtn"); err = $("err"); startBtn = $("startBtn");
 
-    destInput.addEventListener("keydown", (e) => {
-      if (taList.classList.contains("hide")) return;
-      const max = taData.length - 1;
-      if (e.key === "ArrowDown"){ e.preventDefault(); taIdx = Math.min(max, taIdx+1); renderTA(taData); }
-      else if (e.key === "ArrowUp"){ e.preventDefault(); taIdx = Math.max(0, taIdx-1); renderTA(taData); }
-      else if (e.key === "Enter"){ if (taIdx >= 0){ e.preventDefault(); selectTA(taIdx);} }
-      else if (e.key === "Escape"){ clearTA(); }
-    });
+      // Logs so you can confirm in console
+      console.log("Wandr init v0819.2 — handlers bound");
 
-    document.addEventListener("click", (e)=>{ if (!e.target.closest(".ta-wrap")) clearTA(); });
-
-    // ====== Events ======
-    document.addEventListener("DOMContentLoaded", () => {
-      console.log("Wandr front-end booted");
-      // Ensure both submit and click work
-      $("landingForm").addEventListener("submit", (e) => {
+      // Form submit -> start planning
+      const form = $("landingForm");
+      if (form) form.addEventListener("submit", (e) => {
         e.preventDefault();
         const dest = destInput.value.trim();
         if (!dest){ showError("Please choose a destination"); destInput.focus(); return; }
@@ -314,13 +299,47 @@
         chat.classList.remove("hide");
         memory = { destination: dest };
         destLabel.textContent = "Destination: " + dest;
+        // ensure first assistant message container exists
+        if (!msgs) msgs = $("msgs");
+        if (!chatBody) chatBody = $("chatBody");
         boot(dest);
       });
-      startBtn.addEventListener("click", (e)=>{ /* submit handler covers it, but this is a safety net */ });
-      sendBtn.addEventListener("click", () => sendUser(draft.value));
-      draft.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); sendUser(draft.value); } });
-      pdfBtn.addEventListener("click", exportPDF);
-    });
+
+      // Chat send
+      if (sendBtn) sendBtn.addEventListener("click", () => sendUser(draft.value));
+      if (draft) draft.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); sendUser(draft.value); }
+      });
+      if (pdfBtn) pdfBtn.addEventListener("click", exportPDF);
+
+      // Typeahead wiring
+      if (destInput){
+        destInput.addEventListener("input", () => {
+          const q = destInput.value.trim();
+          clearTimeout(taTimer);
+          if (q.length < 2){ clearTA(); return; }
+          taTimer = setTimeout(async () => {
+            taData = await fetchCities(q);
+            renderTA(taData);
+          }, 220);
+        });
+        destInput.addEventListener("keydown", (e) => {
+          if (taList.classList.contains("hide")) return;
+          const max = taData.length - 1;
+          if (e.key === "ArrowDown"){ e.preventDefault(); taIdx = Math.min(max, taIdx+1); renderTA(taData); }
+          else if (e.key === "ArrowUp"){ e.preventDefault(); taIdx = Math.max(0, taIdx-1); renderTA(taData); }
+          else if (e.key === "Enter"){ if (taIdx >= 0){ e.preventDefault(); selectTA(taIdx);} }
+          else if (e.key === "Escape"){ clearTA(); }
+        });
+        document.addEventListener("click", (e)=>{ if (!e.target.closest(".ta-wrap")) clearTA(); });
+      }
+    }
+
+    if (document.readyState === "loading"){
+      document.addEventListener("DOMContentLoaded", init, { once:true });
+    } else {
+      init();
+    }
   </script>
 </body>
 </html>
