@@ -18,6 +18,14 @@
     .input:focus{outline:2px solid var(--brand);outline-offset:1px}
     .badge{display:inline-flex;align-items:center;gap:.4rem;border:1px solid #374151;padding:.25rem .5rem;border-radius:999px;font-size:.8rem}
     hr.sep{border:0;border-top:1px dashed #374151;margin:.75rem 0}
+    .meta{font-size:.8rem;color:#9ca3af;margin-top:.25rem}
+    .hide{display:none}
+    /* Typeahead */
+    .ta-wrap{position:relative}
+    .ta-list{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 6px);background:#0b0b0c;border:1px solid #374151;border-radius:12px;box-shadow:0 10px 24px rgba(0,0,0,.35);max-height:280px;overflow:auto}
+    .ta-item{padding:.6rem .85rem;cursor:pointer}
+    .ta-item:hover,.ta-item.active{background:#111827}
+    .ta-empty{padding:.6rem .85rem;color:#9ca3af}
     /* Chat */
     .chatShell{display:flex;flex-direction:column;min-height:100dvh}
     .chatBody{flex:1;overflow:auto;padding:1rem}
@@ -26,11 +34,8 @@
     .assistant{background:#0f172a;color:#e5e7eb;border-bottom-left-radius:6px}
     .toolbar{position:sticky;bottom:0;background:linear-gradient(to top,rgba(0,0,0,.9),rgba(0,0,0,.75),transparent);padding:.75rem;backdrop-filter:blur(6px)}
     .inputRow{display:flex;gap:.5rem}.inputRow .grow{flex:1}
-    .meta{font-size:.8rem;color:#9ca3af;margin-top:.25rem}
-    .hide{display:none}
-    @media (max-width: 560px){ .card{border-radius:12px} h1{font-size:1.6rem} }
+    @media (max-width:560px){.card{border-radius:12px}h1{font-size:1.6rem}}
   </style>
-  <!-- jsPDF for client-side PDF export -->
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
 </head>
 <body>
@@ -39,11 +44,17 @@
     <div class="card" style="width:100%;max-width:720px">
       <div class="badge">🧭 Wandr Trip Agent</div>
       <h1 style="font-weight:800;margin:.5rem 0 0">Where's your next adventure?</h1>
-      <p style="opacity:.85;margin:.25rem 0 1rem">Tell me a destination and we'll plan it together in chat.</p>
-      <form id="landingForm" style="display:flex;gap:.5rem;margin-top:.25rem">
-        <input id="destination" class="input" placeholder="e.g., Tokyo, Kyoto & Osaka" aria-label="Destination" autofocus />
-        <button class="btn btn-primary" type="submit">Start Planning →</button>
+      <p style="opacity:.85;margin:.25rem 0 1rem">Start typing a city and pick a result. We’ll plan it together in chat.</p>
+
+      <form id="landingForm" style="display:grid;gap:.6rem;margin-top:.25rem">
+        <div class="ta-wrap">
+          <input id="destination" class="input" placeholder="e.g., Tokyo, Japan" aria-label="Destination" autocomplete="off" />
+          <div id="taList" class="ta-list hide" role="listbox" aria-label="City suggestions"></div>
+        </div>
+        <button id="startBtn" class="btn btn-primary" type="submit">Start Planning →</button>
+        <div id="err" class="meta" style="color:#fca5a5;display:none"></div>
       </form>
+
       <hr class="sep" />
       <div style="display:flex;gap:.5rem;flex-wrap:wrap">
         <span class="badge">✨ Seamless chat onboarding</span>
@@ -87,8 +98,9 @@
   </main>
 
   <script>
-    // ====== BACKEND: Your Cloudflare Worker endpoint ======
+    // ====== Backend (your Worker) ======
     const BACKEND = "https://wandr-worker.wasim1113.workers.dev/api/agent";
+    window.BACKEND = BACKEND; // exposed for console testing
 
     // ====== State ======
     let messages = [];
@@ -96,17 +108,20 @@
     let itinerary = null;
     let busy = false;
 
-    // ====== DOM refs ======
+    // ====== DOM ======
     const $ = (id) => document.getElementById(id);
     const landing = $("landing");
     const chat = $("chat");
     const destInput = $("destination");
     const destLabel = $("destLabel");
+    const taList = $("taList");
     const msgs = $("msgs");
     const draft = $("draft");
     const sendBtn = $("sendBtn");
     const chatBody = $("chatBody");
     const pdfBtn = $("pdfBtn");
+    const err = $("err");
+    const startBtn = $("startBtn");
 
     // ====== UI helpers ======
     function appendMsg(role, content) {
@@ -124,6 +139,7 @@
     function setBusy(on) {
       busy = on;
       sendBtn.disabled = on;
+      startBtn.disabled = on;
       if (on) {
         const thinking = document.createElement("div");
         thinking.id = "_thinking";
@@ -138,6 +154,13 @@
       }
     }
 
+    function showError(text) {
+      err.textContent = text;
+      err.style.display = "block";
+      setTimeout(() => (err.style.display = "none"), 4500);
+    }
+
+    // ====== Backend call ======
     async function agentCall(payload) {
       const res = await fetch(BACKEND, {
         method: "POST",
@@ -148,30 +171,24 @@
       return res.json();
     }
 
+    // ====== Boot chat ======
     async function boot(destination) {
       setBusy(true);
       try {
-        const data = await agentCall({
-          messages: [],
-          memory: { destination },
-          mode: "boot",
-        });
+        const data = await agentCall({ messages: [], memory: { destination }, mode: "boot" });
         memory = data.memory || { destination };
         destLabel.textContent = "Destination: " + (memory.destination || "—");
         const first = data.assistant_message || "Hi! How many days will you be staying?";
         appendMsg("assistant", first);
         messages.push({ role: "assistant", content: first });
-        if (data.itinerary) {
-          itinerary = data.itinerary;
-          pdfBtn.classList.remove("hide");
-        }
+        if (data.itinerary) { itinerary = data.itinerary; pdfBtn.classList.remove("hide"); }
       } catch (e) {
+        console.error(e);
         appendMsg("assistant", "Sorry — I hit an error starting the chat. Please try again.");
-      } finally {
-        setBusy(false);
-      }
+      } finally { setBusy(false); }
     }
 
+    // ====== Send user message ======
     async function sendUser(text) {
       if (!text.trim() || busy) return;
       const userMsg = { role: "user", content: text.trim() };
@@ -180,27 +197,19 @@
       draft.value = "";
       setBusy(true);
       try {
-        const data = await agentCall({
-          messages,
-          memory,
-          mode: itinerary ? "modify" : "ask",
-          itinerary,
-        });
+        const data = await agentCall({ messages, memory, mode: itinerary ? "modify" : "ask", itinerary });
         memory = data.memory || memory;
-        if (data.itinerary) {
-          itinerary = data.itinerary;
-          pdfBtn.classList.remove("hide");
-        }
+        if (data.itinerary) { itinerary = data.itinerary; pdfBtn.classList.remove("hide"); }
         const reply = data.assistant_message || "Okay!";
         messages.push({ role: "assistant", content: reply });
         appendMsg("assistant", reply);
       } catch (e) {
+        console.error(e);
         appendMsg("assistant", "Sorry — I hit an error. Try again in a moment.");
-      } finally {
-        setBusy(false);
-      }
+      } finally { setBusy(false); }
     }
 
+    // ====== PDF Export ======
     async function exportPDF() {
       if (!itinerary) return;
       const { jsPDF } = window.jspdf;
@@ -218,7 +227,6 @@
       }
 
       if (itinerary.summary) { doc.setFontSize(13); addLine(itinerary.summary, 22); doc.setFontSize(11); }
-
       if (Array.isArray(itinerary.days)) {
         itinerary.days.forEach((day, i) => {
           doc.setFontSize(13); addLine(`Day ${i+1}${day.title? " — " + day.title : ""}`, 10);
@@ -230,33 +238,87 @@
           addLine("", 14);
         });
       }
-
-      if (Array.isArray(itinerary.tips)) {
-        doc.setFontSize(13); addLine("General Tips", 10); doc.setFontSize(11);
-        itinerary.tips.forEach(t => addLine("• " + t));
-      }
-
+      if (Array.isArray(itinerary.tips)) { doc.setFontSize(13); addLine("General Tips", 10); doc.setFontSize(11); itinerary.tips.forEach(t => addLine("• " + t)); }
       doc.save(`wandr-itinerary-${Date.now()}.pdf`);
     }
 
+    // ====== Typeahead (Teleport API, no key needed) ======
+    let taIdx = -1; // keyboard selection index
+    let taData = [];
+    let taTimer;
+
+    function clearTA(){ taList.innerHTML = ""; taList.classList.add("hide"); taIdx = -1; taData = []; }
+
+    async function fetchCities(q){
+      const url = `https://api.teleport.org/api/cities/?search=${encodeURIComponent(q)}&limit=8`;
+      const r = await fetch(url);
+      if (!r.ok) return [];
+      const j = await r.json();
+      const items = (j._embedded && j._embedded["city:search-results"]) || [];
+      return items.map(x => x.matching_full_name).filter(Boolean);
+    }
+
+    function renderTA(items){
+      taList.innerHTML = "";
+      if (!items.length){ taList.innerHTML = `<div class="ta-empty">No matches</div>`; taList.classList.remove("hide"); return; }
+      items.forEach((name,i) => {
+        const div = document.createElement("div");
+        div.className = "ta-item" + (i===taIdx ? " active" : "");
+        div.textContent = name;
+        div.setAttribute("role","option");
+        div.addEventListener("mousedown", e => { e.preventDefault(); selectTA(i); });
+        taList.appendChild(div);
+      });
+      taList.classList.remove("hide");
+    }
+
+    function selectTA(i){
+      const sel = taData[i];
+      if (!sel) return;
+      destInput.value = sel;
+      clearTA();
+    }
+
+    destInput.addEventListener("input", () => {
+      const q = destInput.value.trim();
+      clearTimeout(taTimer);
+      if (q.length < 2){ clearTA(); return; }
+      taTimer = setTimeout(async () => {
+        try{
+          taData = await fetchCities(q);
+          renderTA(taData);
+        } catch(e){ console.error(e); }
+      }, 220);
+    });
+
+    destInput.addEventListener("keydown", (e) => {
+      if (taList.classList.contains("hide")) return;
+      const max = taData.length - 1;
+      if (e.key === "ArrowDown"){ e.preventDefault(); taIdx = Math.min(max, taIdx+1); renderTA(taData); }
+      else if (e.key === "ArrowUp"){ e.preventDefault(); taIdx = Math.max(0, taIdx-1); renderTA(taData); }
+      else if (e.key === "Enter"){ if (taIdx >= 0){ e.preventDefault(); selectTA(taIdx);} }
+      else if (e.key === "Escape"){ clearTA(); }
+    });
+
+    document.addEventListener("click", (e)=>{ if (!e.target.closest(".ta-wrap")) clearTA(); });
+
     // ====== Events ======
     document.addEventListener("DOMContentLoaded", () => {
+      console.log("Wandr front-end booted");
+      // Ensure both submit and click work
       $("landingForm").addEventListener("submit", (e) => {
         e.preventDefault();
         const dest = destInput.value.trim();
-        if (!dest) return;
+        if (!dest){ showError("Please choose a destination"); destInput.focus(); return; }
         landing.classList.add("hide");
         chat.classList.remove("hide");
         memory = { destination: dest };
         destLabel.textContent = "Destination: " + dest;
         boot(dest);
       });
-
+      startBtn.addEventListener("click", (e)=>{ /* submit handler covers it, but this is a safety net */ });
       sendBtn.addEventListener("click", () => sendUser(draft.value));
-      draft.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendUser(draft.value); }
-      });
-
+      draft.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey){ e.preventDefault(); sendUser(draft.value); } });
       pdfBtn.addEventListener("click", exportPDF);
     });
   </script>
