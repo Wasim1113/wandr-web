@@ -47,7 +47,7 @@
       <h1 style="font-weight:800;margin:.5rem 0 0">Where's your next adventure?</h1>
       <p style="opacity:.85;margin:.25rem 0 1rem">Start typing a city and pick a result (or just type and hit Start).</p>
 
-      <form id="landingForm" style="display:grid;gap:.6rem;margin-top:.25rem">
+      <form id="landingForm" style="display:grid;gap:.6rem;margin-top:.25rem" novalidate>
         <div class="ta-wrap">
           <input id="destination" class="input" placeholder="e.g., Tokyo, Japan" aria-label="Destination" autocomplete="off" />
           <div id="taList" class="ta-list hide" role="listbox" aria-label="City suggestions"></div>
@@ -220,7 +220,7 @@
       doc.save(`wandr-itinerary-${Date.now()}.pdf`);
     }
 
-    /* ========== TYPEAHEAD with Fallback ========== */
+    /* ========== TYPEAHEAD w/ Fallback ========== */
     let taIdx = -1, taData = [], taTimer;
     function clearTA(){ taList.innerHTML=""; taList.classList.add("hide"); taIdx=-1; taData=[]; }
 
@@ -240,10 +240,8 @@
       return arr.map(o => o.display_name);
     }
     async function fetchCities(q){
-      try{
-        return await fetchTeleport(q);
-      }catch(e1){
-        console.warn("Teleport failed, using Nominatim:", e1?.message||e1);
+      try{ return await fetchTeleport(q); }
+      catch(e1){ console.warn("Teleport failed, using Nominatim:", e1?.message||e1);
         try{ return await fetchNominatim(q); }
         catch(e2){ console.error("Typeahead fallback failed:", e2?.message||e2); return []; }
       }
@@ -262,24 +260,36 @@
     }
     function selectTA(i){ const sel=taData[i]; if(!sel) return; destInput.value=sel; clearTA(); }
 
-    /* ========== INIT / BIND ========== */
+    /* ========== INIT / BIND (robust) ========== */
+    function startPlanning(){
+      const dest = destInput.value.trim();
+      console.log("startPlanning() fired with:", dest);
+      if(!dest){ showError("Please choose a destination"); destInput.focus(); return; }
+      clearTA();
+      landing.classList.add("hide");
+      chat.classList.remove("hide");
+      memory={ destination: dest };
+      destLabel.textContent="Destination: "+dest;
+      if(!msgs) msgs=$("msgs"); if(!chatBody) chatBody=$("chatBody");
+      boot(dest);
+    }
+
     function init(){
       landing=$("landing"); chat=$("chat"); destInput=$("destination"); destLabel=$("destLabel");
       taList=$("taList"); msgs=$("msgs"); draft=$("draft"); sendBtn=$("sendBtn");
       chatBody=$("chatBody"); pdfBtn=$("pdfBtn"); err=$("err"); startBtn=$("startBtn");
 
-      console.log("Wandr init v0819.3 — handlers bound");
+      console.log("Wandr init v0819.4 — handlers bound");
 
       const form=$("landingForm");
-      if (form) form.addEventListener("submit",(e)=>{
-        e.preventDefault();
-        const dest = destInput.value.trim();
-        if(!dest){ showError("Please choose a destination"); destInput.focus(); return; }
-        landing.classList.add("hide"); chat.classList.remove("hide");
-        memory={ destination: dest }; destLabel.textContent="Destination: "+dest;
-        if(!msgs) msgs=$("msgs"); if(!chatBody) chatBody=$("chatBody");
-        boot(dest);
-      });
+      if (form){
+        // Use capture so we win even if someone stops propagation later.
+        form.addEventListener("submit",(e)=>{ e.preventDefault(); startPlanning(); }, {capture:true});
+      }
+      if (startBtn){
+        startBtn.addEventListener("click",(e)=>{ e.preventDefault(); startPlanning(); }, {capture:true});
+        startBtn.addEventListener("keyup",(e)=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); startPlanning(); }}, {capture:true});
+      }
 
       if (sendBtn) sendBtn.addEventListener("click",()=>sendUser(draft.value));
       if (draft) draft.addEventListener("keydown",(e)=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendUser(draft.value); }});
