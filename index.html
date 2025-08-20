@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Wandr — Plan your trip</title>
-  <link rel="icon" href="data:,"><!-- avoid favicon 404 -->
+  <link rel="icon" href="data:,">
   <style>
     *{box-sizing:border-box} :root{--brand:#0ea5e9}
     body{margin:0;background:#0b0b0c;color:#e5e7eb;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto}
@@ -47,7 +47,7 @@
       <h1 style="font-weight:800;margin:.5rem 0 0">Where's your next adventure?</h1>
       <p style="opacity:.85;margin:.25rem 0 1rem">Start typing a city and pick a result (or just type and hit Start).</p>
 
-      <!-- Inline handlers ensure this always fires -->
+      <!-- Inline fallbacks ensure this always fires -->
       <form id="landingForm" style="display:grid;gap:.6rem;margin-top:.25rem" novalidate
             onsubmit="event.preventDefault(); window.startPlanning();">
         <div class="ta-wrap">
@@ -104,14 +104,11 @@
   <script>
     /* ===== Config ===== */
     const BACKEND = "https://wandr-worker.wasim1113.workers.dev/api/agent";
-    window.BACKEND = BACKEND; // console testing
+    window.BACKEND = BACKEND;
     const $ = (id) => document.getElementById(id);
 
     /* ===== State ===== */
     let messages = [], memory = {}, itinerary = null, busy = false;
-
-    /* ===== DOM (late-bound) ===== */
-    let landing, chat, destInput, destLabel, taList, msgs, draft, sendBtn, chatBody, pdfBtn, err, startBtn;
 
     /* ===== UI helpers ===== */
     function appendMsg(role, content) {
@@ -122,11 +119,13 @@
       b.className = "bubble " + (role === "user" ? "user" : "assistant");
       b.textContent = content;
       wrap.appendChild(b);
-      msgs.appendChild(wrap);
-      chatBody.scrollTo({ top: chatBody.scrollHeight, behavior: "smooth" });
+      document.getElementById("msgs").appendChild(wrap);
+      document.getElementById("chatBody").scrollTo({ top: document.getElementById("chatBody").scrollHeight, behavior: "smooth" });
     }
     function setBusy(on) {
       busy = on;
+      const sendBtn = $("sendBtn");
+      const startBtn = $("startBtn");
       if (sendBtn) sendBtn.disabled = on;
       if (startBtn) startBtn.disabled = on;
       if (on) {
@@ -135,15 +134,15 @@
         thinking.className = "assistant bubble";
         thinking.style.opacity = ".75";
         thinking.textContent = "Thinking…";
-        msgs.appendChild(thinking);
-        chatBody.scrollTo({ top: chatBody.scrollHeight, behavior: "smooth" });
+        $("msgs").appendChild(thinking);
+        $("chatBody").scrollTo({ top: $("chatBody").scrollHeight, behavior: "smooth" });
       } else {
         const t = document.getElementById("_thinking");
         if (t) t.remove();
       }
     }
     function showError(text) {
-      if (!err) return;
+      const err = $("err");
       err.textContent = text;
       err.style.display = "block";
       setTimeout(() => (err.style.display = "none"), 4500);
@@ -166,11 +165,11 @@
       try {
         const data = await agentCall({ messages: [], memory: { destination }, mode: "boot" });
         memory = data.memory || { destination };
-        destLabel.textContent = "Destination: " + (memory.destination || "—");
+        $("destLabel").textContent = "Destination: " + (memory.destination || "—");
         const first = data.assistant_message || "Hi! How many days will you be staying?";
         appendMsg("assistant", first);
         messages.push({ role: "assistant", content: first });
-        if (data.itinerary) { itinerary = data.itinerary; pdfBtn.classList.remove("hide"); }
+        if (data.itinerary) { itinerary = data.itinerary; $("pdfBtn").classList.remove("hide"); }
       } catch (e) {
         console.error(e);
         appendMsg("assistant", "Sorry — I hit an error starting the chat. Please try again.");
@@ -182,12 +181,12 @@
       const userMsg = { role: "user", content: text.trim() };
       messages.push(userMsg);
       appendMsg("user", userMsg.content);
-      draft.value = "";
+      $("draft").value = "";
       setBusy(true);
       try {
         const data = await agentCall({ messages, memory, mode: itinerary ? "modify" : "ask", itinerary });
         memory = data.memory || memory;
-        if (data.itinerary) { itinerary = data.itinerary; pdfBtn.classList.remove("hide"); }
+        if (data.itinerary) { itinerary = data.itinerary; $("pdfBtn").classList.remove("hide"); }
         const reply = data.assistant_message || "Okay!";
         messages.push({ role: "assistant", content: reply });
         appendMsg("assistant", reply);
@@ -222,24 +221,12 @@
       doc.save(`wandr-itinerary-${Date.now()}.pdf`);
     }
 
-    /* ===== Typeahead: Nominatim + local fallback ===== */
-    // Lightweight local list as ultimate fallback
+    /* ===== Typeahead: Nominatim + tiny local fallback ===== */
     const CITY_SEED = [
-      "Tokyo, Japan","Osaka, Japan","Kyoto, Japan","Seoul, South Korea","Taipei, Taiwan",
-      "Singapore, Singapore","Hong Kong, China","Bangkok, Thailand","Phuket, Thailand","Bali, Indonesia",
-      "Sydney, Australia","Melbourne, Australia","Auckland, New Zealand",
-      "San Francisco, United States","Los Angeles, United States","New York, United States","Chicago, United States","Miami, United States",
-      "Vancouver, Canada","Toronto, Canada","Montreal, Canada","Mexico City, Mexico","Cancún, Mexico",
-      "London, United Kingdom","Edinburgh, United Kingdom","Dublin, Ireland","Paris, France","Nice, France",
-      "Barcelona, Spain","Madrid, Spain","Rome, Italy","Florence, Italy","Venice, Italy","Milan, Italy",
-      "Berlin, Germany","Munich, Germany","Amsterdam, Netherlands","Copenhagen, Denmark","Stockholm, Sweden","Oslo, Norway","Helsinki, Finland",
-      "Lisbon, Portugal","Zurich, Switzerland","Geneva, Switzerland","Vienna, Austria","Prague, Czechia","Budapest, Hungary",
-      "Athens, Greece","Istanbul, Türkiye","Dubai, United Arab Emirates","Marrakesh, Morocco","Cairo, Egypt",
-      "Cape Town, South Africa","Rio de Janeiro, Brazil","São Paulo, Brazil","Buenos Aires, Argentina","Santiago, Chile","Lima, Peru","Delhi, India","Jaipur, India","Goa, India"
+      "Tokyo, Japan","Osaka, Japan","Kyoto, Japan","San Francisco, United States","Los Angeles, United States","New York, United States","London, United Kingdom","Paris, France","Barcelona, Spain","Rome, Italy","Bangkok, Thailand","Singapore, Singapore","Sydney, Australia"
     ];
-
     let taIdx = -1, taData = [], taTimer;
-    function clearTA(){ taList.innerHTML=""; taList.classList.add("hide"); taIdx=-1; taData=[]; }
+    function clearTA(){ const l=$("taList"); l.innerHTML=""; l.classList.add("hide"); taIdx=-1; taData=[]; }
 
     function formatNom(result){
       const a = result.address || {};
@@ -247,92 +234,85 @@
       const country = a.country || "";
       return (city && country) ? `${city}, ${country}` : (result.display_name || "").split(",").slice(0,3).join(", ");
     }
-
     async function fetchNominatim(q){
       try{
         const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&limit=8&addressdetails=1`;
         const r = await fetch(url, { headers: { "Accept":"application/json" }});
         if (!r.ok) throw new Error("HTTP "+r.status);
         const arr = await r.json();
-        const names = Array.from(new Set(arr.map(formatNom).filter(Boolean)));
-        return names;
+        return Array.from(new Set(arr.map(formatNom).filter(Boolean)));
       }catch(e){
-        console.warn("Nominatim failed, falling back to local list:", e?.message || e);
         const ql = q.toLowerCase();
         return CITY_SEED.filter(n => n.toLowerCase().includes(ql)).slice(0,8);
       }
     }
-
     function renderTA(items){
-      taList.innerHTML="";
-      if (!items.length){ taList.innerHTML=`<div class="ta-empty">No matches</div>`; taList.classList.remove("hide"); return; }
+      const l = $("taList");
+      l.innerHTML="";
+      if (!items.length){ l.innerHTML=`<div class="ta-empty">No matches</div>`; l.classList.remove("hide"); return; }
       items.forEach((name,i)=>{
         const div=document.createElement("div");
         div.className="ta-item"+(i===taIdx?" active":"");
         div.textContent=name; div.setAttribute("role","option");
         div.addEventListener("mousedown",e=>{ e.preventDefault(); selectTA(i); });
-        taList.appendChild(div);
+        l.appendChild(div);
       });
-      taList.classList.remove("hide");
+      l.classList.remove("hide");
     }
-    function selectTA(i){ const sel=taData[i]; if(!sel) return; destInput.value=sel; clearTA(); }
+    function selectTA(i){ const sel=taData[i]; if(!sel) return; $("destination").value=sel; clearTA(); }
 
     /* ===== Init / Bind ===== */
-    function startPlanningOnce(){
-      let started = false;
+    window.startPlanning = (function(){
+      let started=false;
       return function(){
         if (started) return;
         started = true;
-        const dest = destInput.value.trim();
+        const dest = $("destination").value.trim();
         console.log("startPlanning() RUNNING ONCE with:", dest);
-        if (!dest){ showError("Please choose a destination"); started = false; return; }
-        clearTA();
-        landing.classList.add("hide");
-        chat.classList.remove("hide");
-        memory={ destination: dest };
-        destLabel.textContent="Destination: "+dest;
-        if(!msgs) msgs=$("msgs"); if(!chatBody) chatBody=$("chatBody");
+        if (!dest){ showError("Please choose a destination"); started=false; return; }
+
+        // swap views using fresh DOM lookups (no globals)
+        $("landing").classList.add("hide");
+        $("chat").classList.remove("hide");
+        $("destLabel").textContent = "Destination: " + dest;
+
+        // seed memory and boot
+        memory = { destination: dest };
         boot(dest);
       };
-    }
-    window.startPlanning = startPlanningOnce(); // exposed for inline handlers & console
+    })();
 
     function init(){
-      landing=$("landing"); chat=$("chat"); destInput=$("destination"); destLabel=$("destLabel");
-      taList=$("taList"); msgs=$("msgs"); draft=$("draft"); sendBtn=$("sendBtn");
-      chatBody=$("chatBody"); pdfBtn=$("pdfBtn"); err=$("err"); startBtn=$("startBtn");
+      console.log("Wandr init v0820.2 — handlers bound");
 
-      console.log("Wandr init v0820.1 — handlers bound");
-
-      // Programmatic bindings (inline handlers already call startPlanning)
-      const form=$("landingForm");
+      // Programmatic (inline fallbacks already call startPlanning)
+      const form=$("landingForm"), startBtn=$("startBtn");
       form && form.addEventListener("submit",(e)=>{ e.preventDefault(); window.startPlanning(); }, {capture:true});
       startBtn && startBtn.addEventListener("click",(e)=>{ e.preventDefault(); window.startPlanning(); }, {capture:true});
 
-      if (sendBtn) sendBtn.addEventListener("click",()=>sendUser(draft.value));
-      if (draft) draft.addEventListener("keydown",(e)=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendUser(draft.value); }});
-      if (pdfBtn) pdfBtn.addEventListener("click",exportPDF);
+      $("sendBtn").addEventListener("click",()=>sendUser($("draft").value));
+      $("draft").addEventListener("keydown",(e)=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendUser($("draft").value); }});
+      $("pdfBtn").addEventListener("click",exportPDF);
 
-      if (destInput){
-        destInput.addEventListener("input",()=>{
-          const q=destInput.value.trim();
-          clearTimeout(taTimer);
-          if(q.length<2){ clearTA(); return; }
-          taTimer=setTimeout(async ()=>{
-            taData = await fetchNominatim(q);
-            taIdx=-1; renderTA(taData);
-          },220);
-        });
-        destInput.addEventListener("keydown",(e)=>{
-          if(taList.classList.contains("hide")) return;
-          const max=taData.length-1;
-          if(e.key==="ArrowDown"){ e.preventDefault(); taIdx=Math.min(max,taIdx+1); renderTA(taData); }
-          else if(e.key==="ArrowUp"){ e.preventDefault(); taIdx=Math.max(0,taIdx-1); renderTA(taData); }
-          else if(e.key==="Enter"){ if(taIdx>=0){ e.preventDefault(); selectTA(taIdx);} }
-          else if(e.key==="Escape"){ clearTA(); }
-        });
-        document.addEventListener("click",(e)=>{ if(!e.target.closest(".ta-wrap")) clearTA(); });
-      }
+      const destInput=$("destination");
+      destInput.addEventListener("input",()=>{
+        const q=destInput.value.trim();
+        clearTimeout(taTimer);
+        if(q.length<2){ clearTA(); return; }
+        taTimer=setTimeout(async ()=>{
+          taData = await fetchNominatim(q);
+          taIdx=-1; renderTA(taData);
+        },220);
+      });
+      destInput.addEventListener("keydown",(e)=>{
+        const l=$("taList"); if(l.classList.contains("hide")) return;
+        const max=taData.length-1;
+        if(e.key==="ArrowDown"){ e.preventDefault(); taIdx=Math.min(max,taIdx+1); renderTA(taData); }
+        else if(e.key==="ArrowUp"){ e.preventDefault(); taIdx=Math.max(0,taIdx-1); renderTA(taData); }
+        else if(e.key==="Enter"){ if(taIdx>=0){ e.preventDefault(); selectTA(taIdx);} }
+        else if(e.key==="Escape"){ clearTA(); }
+      });
+      document.addEventListener("click",(e)=>{ if(!e.target.closest(".ta-wrap")) clearTA(); });
     }
     if (document.readyState==="loading"){ document.addEventListener("DOMContentLoaded",init,{once:true}); } else { init(); }
   </script>
